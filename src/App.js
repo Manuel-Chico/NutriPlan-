@@ -1,2 +1,2 @@
-import NutriPlan from './NutriPlan.jsx';
+import NutriPlan from './nutriplan.jsx';
 export default NutriPlan;
