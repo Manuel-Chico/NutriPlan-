@@ -1,2 +1,2 @@
-import NutriPlan from './NutriPlan';
+import NutriPlan from'./NutriPlan';
 export default NutriPlan;
