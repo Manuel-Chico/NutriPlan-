@@ -1,4 +1,4 @@
-caimport { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 
 // ── BASE DE DATOS DE ALIMENTOS ─────────────────────────────────────────
 // precio_kg: precio referencia en MXN por kg (editable por usuario)
