@@ -880,7 +880,187 @@ function costoPorcion(food, precios) {
   const precioKg = precios[food.id] ?? food.precio_kg;
   return (food.porcion / 1000) * precioKg;
 }
+function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, setProtocolo, setScreen }) {
+  const [seccion, setSeccion] = useState("que");
+  const g = GUIAS_DIETA[guiaActiva];
+  const soma = SOMATOTIPOS.find(s => s.id === somatotipo);
+  if (!g) return null;
 
+  const secciones = [
+    { id: "que",       label: "¿Qué es?" },
+    { id: "como",      label: "Timeline" },
+    { id: "flu",       label: "Síntomas" },
+    { id: "tabla",     label: "Por cuerpo" },
+    { id: "alimentos", label: "Alimentos" },
+  ];
+  const seccionesVisibles = secciones.filter(s => {
+    if (s.id === "tabla"     && !g.recargas)  return false;
+    if (s.id === "alimentos" && !g.alimentos) return false;
+    return true;
+  });
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 80 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+      <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button onClick={() => setScreen(guiaOrigen)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: g.color, textTransform: "uppercase" }}>Guía completa</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>{g.icon} {g.titulo}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, padding: "0 20px", overflowX: "auto", marginBottom: 20 }}>
+        {seccionesVisibles.map(s => (
+          <button key={s.id} onClick={() => setSeccion(s.id)} style={{
+            padding: "7px 14px", borderRadius: 99, border: "none", cursor: "pointer", whiteSpace: "nowrap",
+            background: seccion === s.id ? g.color : "rgba(255,255,255,0.07)",
+            color: seccion === s.id ? "#000" : "#888",
+            fontWeight: seccion === s.id ? 700 : 400, fontSize: 12, transition: "all 0.2s",
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px" }}>
+
+        {seccion === "que" && (
+          <div>
+            <div style={{ padding: "16px 18px", background: `${g.color}10`, border: `1.5px solid ${g.color}33`, borderRadius: 16, marginBottom: 14 }}>
+              <div style={{ fontSize: 15, lineHeight: 1.7, color: "#ddd" }}>{g.resumen}</div>
+            </div>
+            <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: g.color, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>⚙️ Mecanismo</div>
+              <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.7 }}>{g.mecanismo}</div>
+            </div>
+            <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: g.color, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>📊 Macros</div>
+              <div style={{ fontSize: 15, color: "#fff", fontWeight: 600 }}>{g.macros}</div>
+            </div>
+            <div style={{ padding: "12px 16px", background: "rgba(100,181,246,0.07)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 10, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>📚 Respaldo científico</div>
+              <div style={{ fontSize: 12, color: "#777" }}>{g.ciencia}</div>
+            </div>
+            {g.advertencias && (
+              <div style={{ padding: "14px 16px", background: "rgba(239,83,80,0.07)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 14 }}>
+                <div style={{ fontSize: 11, color: "#ef9a9a", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>⚠️ Advertencias</div>
+                {g.advertencias.map((a, i) => (
+                  <div key={i} style={{ fontSize: 12, color: "#ef9a9a", marginBottom: 6, lineHeight: 1.5 }}>• {a}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {seccion === "como" && (
+          <div>
+            <p style={{ color: "#666", fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>Qué puedes esperar semana a semana desde que empiezas.</p>
+            {g.timeline.map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: t.color, flexShrink: 0, marginTop: 3 }} />
+                  {i < g.timeline.length - 1 && <div style={{ width: 2, flex: 1, background: "rgba(255,255,255,0.07)", marginTop: 4 }} />}
+                </div>
+                <div style={{ paddingBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: t.color, fontWeight: 600, marginBottom: 3 }}>{t.dia}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>{t.titulo}</div>
+                  <div style={{ fontSize: 12, color: "#888", lineHeight: 1.6 }}>{t.desc}</div>
+                </div>
+              </div>
+            ))}
+            {g.ventanas && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 12, color: g.color, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>⏰ Ventanas recomendadas</div>
+                {g.ventanas.map((v, i) => (
+                  <div key={i} style={{ padding: "12px 14px", background: v.recomendado ? `${g.color}10` : "rgba(255,255,255,0.03)", border: `1px solid ${v.recomendado ? g.color + "44" : "rgba(255,255,255,0.07)"}`, borderRadius: 12, marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: v.recomendado ? g.color : "#fff" }}>{v.nombre} {v.recomendado && "⭐"}</div>
+                    <div style={{ fontSize: 12, color: "#666", marginTop: 3 }}>{v.desc}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {seccion === "flu" && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✓ Síntomas normales</div>
+              {g.ketoFlu.normales.map((s, i) => (
+                <div key={i} style={{ padding: "8px 12px", background: "rgba(129,199,132,0.07)", borderRadius: 8, marginBottom: 5, fontSize: 13, color: "#aaa" }}>• {s}</div>
+              ))}
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "#ef9a9a", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>🛑 Señales para parar</div>
+              {g.ketoFlu.parar.map((s, i) => (
+                <div key={i} style={{ padding: "8px 12px", background: "rgba(239,83,80,0.08)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 8, marginBottom: 5, fontSize: 13, color: "#ef9a9a" }}>⚠️ {s}</div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>💧 Remedios</div>
+              {g.ketoFlu.remedios.map((s, i) => (
+                <div key={i} style={{ padding: "8px 12px", background: "rgba(100,181,246,0.07)", borderRadius: 8, marginBottom: 5, fontSize: 13, color: "#aaa" }}>• {s}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {seccion === "tabla" && g.recargas && (
+          <div>
+            <p style={{ color: "#666", fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>{g.recargas.descripcion}</p>
+            {g.recargas.porSomatotipo.map((r, i) => {
+              const esMio = soma?.label === r.tipo.split(" ")[0];
+              return (
+                <div key={i} style={{ padding: "14px 16px", background: esMio ? `${g.color}12` : "rgba(255,255,255,0.03)", border: `1.5px solid ${esMio ? g.color : "rgba(255,255,255,0.07)"}`, borderRadius: 14, marginBottom: 10 }}>
+                  {esMio && <div style={{ fontSize: 10, color: g.color, marginBottom: 6, fontWeight: 700 }}>← Tu somatotipo</div>}
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{r.tipo}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[["Protocolo", r.protocolo, g.color], ["Recargas", r.recargas, "#888"], ["Carbos máx.", r.carbosMax, "#64B5F6"]].map(([label, val, color]) => (
+                      <div key={label} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                        <div style={{ fontSize: 9, color: "#555", marginBottom: 3, textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+                        <div style={{ fontSize: 12, color, fontWeight: 600 }}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {seccion === "alimentos" && g.alimentos && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✓ Puedes comer</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {g.alimentos.si.map((a, i) => (
+                  <span key={i} style={{ padding: "5px 12px", background: "rgba(129,199,132,0.1)", border: "1px solid rgba(129,199,132,0.25)", borderRadius: 99, fontSize: 12, color: "#81C784" }}>{a}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#ef9a9a", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✗ Debes evitar</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {g.alimentos.no.map((a, i) => (
+                  <span key={i} style={{ padding: "5px 12px", background: "rgba(239,83,80,0.08)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 99, fontSize: 12, color: "#ef9a9a" }}>{a}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button onClick={() => {
+          if (guiaOrigen === "protocolo") { setProtocolo(guiaActiva); setScreen("protocolo"); }
+          else setScreen("app");
+        }} style={{ width: "100%", marginTop: 24, padding: "15px", borderRadius: 14, border: "none", background: g.color, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+          {guiaOrigen === "protocolo" ? `Elegir ${g.titulo} →` : "Entendido →"}
+        </button>
+        <button onClick={() => setScreen(guiaOrigen)} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>
+          ← {guiaOrigen === "app" ? "Regresar al plan" : "Ver otras opciones"}
+        </button>
+      </div>
+    </div>
+  );
+}
 export default function NutriPlan() {
   const [screen, setScreen]     = useState("landing");
   const [step, setStep]         = useState(0);
@@ -1552,195 +1732,17 @@ Genera una recomendación personalizada, concreta y accionable. Menciona número
     </div>
   );
 
-  // ── GUÍA DE DIETA ────────────────────────────────────────────────────
   if (screen === "guia" && guiaActiva) {
-    const g = GUIAS_DIETA[guiaActiva];
-    const soma = SOMATOTIPOS.find(s => s.id === somatotipo);
-    const [seccion, setSeccion] = useState("que");
-    const secciones = [
-      { id: "que",    label: "¿Qué es?" },
-      { id: "como",   label: "Timeline" },
-      { id: "flu",    label: "Síntomas" },
-      { id: "tabla",  label: "Por cuerpo" },
-      { id: "alimentos", label: "Alimentos" },
-    ];
-    // Solo mostrar secciones relevantes
-    const seccionesVisibles = secciones.filter(s => {
-      if (s.id === "tabla" && !g.recargas) return false;
-      if (s.id === "alimentos" && !g.alimentos) return false;
-      return true;
-    });
-
-    return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 80 }}>
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-
-        {/* Header */}
-        <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => setScreen(guiaOrigen)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, letterSpacing: 3, color: g.color, textTransform: "uppercase" }}>Guía completa</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>{g.icon} {g.titulo}</div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 6, padding: "0 20px", overflowX: "auto", marginBottom: 20 }}>
-          {seccionesVisibles.map(s => (
-            <button key={s.id} onClick={() => setSeccion(s.id)} style={{
-              padding: "7px 14px", borderRadius: 99, border: "none", cursor: "pointer", whiteSpace: "nowrap",
-              background: seccion === s.id ? g.color : "rgba(255,255,255,0.07)",
-              color: seccion === s.id ? "#000" : "#888",
-              fontWeight: seccion === s.id ? 700 : 400, fontSize: 12, transition: "all 0.2s",
-            }}>{s.label}</button>
-          ))}
-        </div>
-
-        <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px" }}>
-
-          {/* ¿Qué es? */}
-          {seccion === "que" && (
-            <div>
-              <div style={{ padding: "16px 18px", background: `${g.color}10`, border: `1.5px solid ${g.color}33`, borderRadius: 16, marginBottom: 14 }}>
-                <div style={{ fontSize: 15, lineHeight: 1.7, color: "#ddd" }}>{g.resumen}</div>
-              </div>
-              <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 14, marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: g.color, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>⚙️ Mecanismo</div>
-                <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.7 }}>{g.mecanismo}</div>
-              </div>
-              <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 14, marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: g.color, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>📊 Macros</div>
-                <div style={{ fontSize: 15, color: "#fff", fontWeight: 600 }}>{g.macros}</div>
-              </div>
-              <div style={{ padding: "12px 16px", background: "rgba(100,181,246,0.07)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 14, marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>📚 Respaldo científico</div>
-                <div style={{ fontSize: 12, color: "#777" }}>{g.ciencia}</div>
-              </div>
-              {g.advertencias && (
-                <div style={{ padding: "14px 16px", background: "rgba(239,83,80,0.07)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 14 }}>
-                  <div style={{ fontSize: 11, color: "#ef9a9a", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>⚠️ Advertencias</div>
-                  {g.advertencias.map((a, i) => (
-                    <div key={i} style={{ fontSize: 12, color: "#ef9a9a", marginBottom: 6, lineHeight: 1.5 }}>• {a}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Timeline */}
-          {seccion === "como" && (
-            <div>
-              <p style={{ color: "#666", fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>Qué puedes esperar semana a semana desde que empiezas.</p>
-              {g.timeline.map((t, i) => (
-                <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16 }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: t.color, flexShrink: 0, marginTop: 3 }} />
-                    {i < g.timeline.length - 1 && <div style={{ width: 2, flex: 1, background: "rgba(255,255,255,0.07)", marginTop: 4 }} />}
-                  </div>
-                  <div style={{ paddingBottom: 16 }}>
-                    <div style={{ fontSize: 11, color: t.color, fontWeight: 600, marginBottom: 3 }}>{t.dia}</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>{t.titulo}</div>
-                    <div style={{ fontSize: 12, color: "#888", lineHeight: 1.6 }}>{t.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Síntomas */}
-          {seccion === "flu" && (
-            <div>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✓ Síntomas normales</div>
-                {g.ketoFlu.normales.map((s, i) => (
-                  <div key={i} style={{ padding: "8px 12px", background: "rgba(129,199,132,0.07)", borderRadius: 8, marginBottom: 5, fontSize: 13, color: "#aaa" }}>• {s}</div>
-                ))}
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: "#ef9a9a", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>🛑 Señales para parar</div>
-                {g.ketoFlu.parar.map((s, i) => (
-                  <div key={i} style={{ padding: "8px 12px", background: "rgba(239,83,80,0.08)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 8, marginBottom: 5, fontSize: 13, color: "#ef9a9a" }}>⚠️ {s}</div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>💧 Remedios</div>
-                {g.ketoFlu.remedios.map((s, i) => (
-                  <div key={i} style={{ padding: "8px 12px", background: "rgba(100,181,246,0.07)", borderRadius: 8, marginBottom: 5, fontSize: 13, color: "#aaa" }}>• {s}</div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Por tipo de cuerpo */}
-          {seccion === "tabla" && g.recargas && (
-            <div>
-              <p style={{ color: "#666", fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>{g.recargas.descripcion}</p>
-              {g.recargas.porSomatotipo.map((r, i) => (
-                <div key={i} style={{ padding: "14px 16px", background: soma?.label === r.tipo.split(" ")[0] ? `${g.color}12` : "rgba(255,255,255,0.03)", border: `1.5px solid ${soma?.label === r.tipo.split(" ")[0] ? g.color : "rgba(255,255,255,0.07)"}`, borderRadius: 14, marginBottom: 10 }}>
-                  {soma?.label === r.tipo.split(" ")[0] && <div style={{ fontSize: 10, color: g.color, marginBottom: 6, fontWeight: 700 }}>← Tu somatotipo</div>}
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{r.tipo}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {[["Protocolo", r.protocolo, g.color], ["Recargas", r.recargas, "#888"], ["Carbos máx.", r.carbosMax, "#64B5F6"]].map(([label, val, color]) => (
-                      <div key={label} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
-                        <div style={{ fontSize: 9, color: "#555", marginBottom: 3, textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
-                        <div style={{ fontSize: 12, color, fontWeight: 600 }}>{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Alimentos */}
-          {seccion === "alimentos" && g.alimentos && (
-            <div>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✓ Puedes comer</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                  {g.alimentos.si.map((a, i) => (
-                    <span key={i} style={{ padding: "5px 12px", background: "rgba(129,199,132,0.1)", border: "1px solid rgba(129,199,132,0.25)", borderRadius: 99, fontSize: 12, color: "#81C784" }}>{a}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: "#ef9a9a", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✗ Debes evitar</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                  {g.alimentos.no.map((a, i) => (
-                    <span key={i} style={{ padding: "5px 12px", background: "rgba(239,83,80,0.08)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 99, fontSize: 12, color: "#ef9a9a" }}>{a}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Ventanas de ayuno */}
-          {seccion === "como" && g.ventanas && (
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 12, color: g.color, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>⏰ Ventanas recomendadas</div>
-              {g.ventanas.map((v, i) => (
-                <div key={i} style={{ padding: "12px 14px", background: v.recomendado ? `${g.color}10` : "rgba(255,255,255,0.03)", border: `1px solid ${v.recomendado ? g.color + "44" : "rgba(255,255,255,0.07)"}`, borderRadius: 12, marginBottom: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: v.recomendado ? g.color : "#fff" }}>{v.nombre} {v.recomendado && "⭐"}</div>
-                  <div style={{ fontSize: 12, color: "#666", marginTop: 3 }}>{v.desc}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Botón confirmar */}
-          <button onClick={() => {
-            if (guiaOrigen === "protocolo") { setProtocolo(guiaActiva); setScreen("protocolo"); }
-            else setScreen("app");
-          }} style={{ width: "100%", marginTop: 24, padding: "15px", borderRadius: 14, border: "none", background: g.color, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-            {guiaOrigen === "protocolo" ? `Elegir ${g.titulo} →` : "Entendido →"}
-          </button>
-          <button onClick={() => setScreen(guiaOrigen)} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>
-            ← {guiaOrigen === "app" ? "Regresar al plan" : "Ver otras opciones"}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  return (
+    <GuiaDieta
+      guiaActiva={guiaActiva}
+      guiaOrigen={guiaOrigen}
+      somatotipo={somatotipo}
+      setProtocolo={setProtocolo}
+      setScreen={setScreen}
+    />
+  );
+}
 
   // ── UPGRADE SCREEN ───────────────────────────────────────────────────
   if (screen === "upgrade") {
