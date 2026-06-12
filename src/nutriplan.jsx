@@ -692,6 +692,13 @@ export default function NutriPlan() {
     return { proteinas: enriquecer(FOOD_DB.proteinas), carbohidratos: enriquecer(FOOD_DB.carbohidratos), lipidos: enriquecer(FOOD_DB.lipidos) };
   }, [restriccion, protocolo, tiempoPrep]);
 
+  // ── ESTE HOOK DEBE ESTAR AQUÍ, ANTES DE CUALQUIER return CONDICIONAL ──
+  const nombreComidas = useMemo(() => {
+    if (protocolo === "ayuno16" || protocolo === "ketoAyuno") return numComidas === 2 ? ["Primera comida (12:00 pm)", "Última comida (7:00 pm)"] : ["Primera comida (12:00 pm)", "Comida (3:00 pm)", "Última comida (7:00 pm)"];
+    if (protocolo === "ayuno18") return numComidas === 2 ? ["Primera comida (1:00 pm)", "Última comida (6:00 pm)"] : ["Primera comida (1:00 pm)", "Merienda (4:00 pm)", "Última comida (6:30 pm)"];
+    return numComidas >= 4 ? ["Desayuno", "Media mañana", "Comida", "Merienda", "Cena"] : numComidas === 3 ? ["Desayuno", "Comida", "Cena"] : ["Comida principal", "Cena"];
+  }, [protocolo, numComidas]);
+
   const inputStyle = { display: "block", width: "100%", marginTop: 6, padding: "13px 14px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 12, color: "#fff", fontSize: 15, outline: "none", boxSizing: "border-box" };
 
   const Bar = ({ value, max, color }) => (
@@ -1045,12 +1052,6 @@ export default function NutriPlan() {
 
   // ── APP PRINCIPAL ─────────────────────────────────────────────────────
   const stepLabels = ["Perfil", "Cuerpo", "Objetivo", "Alimentos", "Comidas", "Resumen"];
-
-  const nombreComidas = useMemo(() => {
-    if (protocolo === "ayuno16" || protocolo === "ketoAyuno") return numComidas === 2 ? ["Primera comida (12:00 pm)", "Última comida (7:00 pm)"] : ["Primera comida (12:00 pm)", "Comida (3:00 pm)", "Última comida (7:00 pm)"];
-    if (protocolo === "ayuno18") return numComidas === 2 ? ["Primera comida (1:00 pm)", "Última comida (6:00 pm)"] : ["Primera comida (1:00 pm)", "Merienda (4:00 pm)", "Última comida (6:30 pm)"];
-    return numComidas >= 4 ? ["Desayuno", "Media mañana", "Comida", "Merienda", "Cena"] : numComidas === 3 ? ["Desayuno", "Comida", "Cena"] : ["Comida principal", "Cena"];
-  }, [protocolo, numComidas]);
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 60 }}>
