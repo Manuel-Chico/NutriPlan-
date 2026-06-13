@@ -257,8 +257,7 @@ function costoPorcion(food, precios) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// COMPONENTES STANDALONE — definidos FUERA de NutriPlan para evitar el
-// bug de hooks (useState dentro de componentes redefinidos en cada render)
+// COMPONENTES STANDALONE
 // ═══════════════════════════════════════════════════════════════════════
 
 function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, setProtocolo, setScreen }) {
@@ -403,7 +402,6 @@ function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, setProtocolo, setScreen
   );
 }
 
-// ── INFUSION CARD — standalone (useState propio, fuera de NutriPlan) ──
 function InfusionCard({ inf }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -464,7 +462,6 @@ function InfusionCard({ inf }) {
   );
 }
 
-// ── FOOD CARD — standalone (useState propio, fuera de NutriPlan) ──────
 function FoodCard({ food, cat, selected, porciones, setPorciones, precios, setPrecios, toggle }) {
   const [editMode, setEditMode] = useState(null);
   const porcionActual = porciones[food.id] ?? food.porcion;
@@ -608,36 +605,26 @@ export default function NutriPlan() {
     return { ...prev, [cat]: exists ? arr.filter(f => f.id !== food.id) : [...arr, food] };
   });
 
-  const CONSUMER_KEY = "38baceb355454aa7a21dbc6d660967c1";
-
+  // ── ✅ CAMBIO 1: buscarAlimento — ahora usa /api/fatsecret ────────────
   const buscarAlimento = async (query) => {
     if (!query || query.length < 2) { setResultadosBusqueda([]); return; }
     setBuscando(true); setErrorBusqueda(null);
     try {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const nonce     = Math.random().toString(36).substring(2, 15);
-      const baseUrl   = "https://platform.fatsecret.com/rest/server.api";
-      const params    = { method: "foods.search", search_expression: query, format: "json", max_results: "20", oauth_consumer_key: CONSUMER_KEY, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
-      const qs        = Object.keys(params).sort().map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
-      const res       = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(baseUrl + "?" + qs)}`);
-      const data      = await res.json();
-      const parsed    = JSON.parse(data.contents);
-      if (parsed?.foods?.food) {
-        const foods = Array.isArray(parsed.foods.food) ? parsed.foods.food : [parsed.foods.food];
-        setResultadosBusqueda(foods.map(f => {
-          const desc = f.food_description || "";
-          const por  = desc.match(/Per\s+([\d.]+)g/i);   const cal = desc.match(/Calories:\s*([\d.]+)kcal/i);
-          const fat  = desc.match(/Fat:\s*([\d.]+)g/i);  const carb = desc.match(/Carbs:\s*([\d.]+)g/i);
-          const pro  = desc.match(/Protein:\s*([\d.]+)g/i);
-          const porcion   = por  ? +por[1]  : 100; const calorias  = cal  ? +cal[1]  : 0;
-          const lipidos   = fat  ? +fat[1]  : 0;   const carbos    = carb ? +carb[1] : 0;
-          const proteinas = pro  ? +pro[1]  : 0;
-          const cat = proteinas >= carbos && proteinas >= lipidos ? "proteinas" : carbos >= lipidos ? "carbohidratos" : "lipidos";
-          return { id: `fs_${f.food_id}`, nombre: f.food_name, porcion, proteinas, carbos, lipidos, calorias, precio_kg: 0, prep: "moderado", cat, fuente: "fatsecret" };
-        }));
-      } else { setResultadosBusqueda([]); setErrorBusqueda("Sin resultados para esa búsqueda."); }
-    } catch { setErrorBusqueda("Búsqueda no disponible en modo prototipo. Funcionará completo en la versión publicada."); setResultadosBusqueda([]); }
-    finally { setBuscando(false); }
+      const res  = await fetch(`/api/fatsecret?query=${encodeURIComponent(query)}&max_results=20`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error de búsqueda");
+      if (data.resultados?.length > 0) {
+        setResultadosBusqueda(data.resultados);
+      } else {
+        setResultadosBusqueda([]);
+        setErrorBusqueda("Sin resultados para esa búsqueda.");
+      }
+    } catch (err) {
+      setErrorBusqueda(err.message || "Error al buscar. Intenta de nuevo.");
+      setResultadosBusqueda([]);
+    } finally {
+      setBuscando(false);
+    }
   };
 
   const tieneAcceso = (feature) => {
@@ -648,18 +635,30 @@ export default function NutriPlan() {
   };
   const intentarAcceder = (feature, accion) => { if (tieneAcceso(feature)) { accion(); } else { setUpgradeFeature(feature); setScreen("upgrade"); } };
 
+  // ── ✅ CAMBIO 2: pedirRecomendacionIA — ahora usa /api/claude ─────────
   const pedirRecomendacionIA = async (regs) => {
     if (regs.length < 1) return;
     setCargandoIA(true); setRecomendacionIA("");
-    const ultimo = regs[regs.length - 1]; const anterior = regs.length > 1 ? regs[regs.length - 2] : null;
-    const objInfo = OBJETIVOS.find(o => o.id === objetivo); const somaInfo = SOMATOTIPOS.find(s => s.id === somatotipo);
+    const ultimo   = regs[regs.length - 1];
+    const anterior = regs.length > 1 ? regs[regs.length - 2] : null;
+    const objInfo  = OBJETIVOS.find(o => o.id === objetivo);
+
     const prompt = `Eres un nutriólogo deportivo experto. Da una recomendación concreta y motivadora en 3-4 oraciones. Usa el nombre del usuario.\n\nUsuario: ${registro.nombre}\nObjetivo: ${objInfo?.label}\nMeta calórica: ${calMeta} kcal/día\nMeta proteína: ${proteinaMeta}g/día\n\nRegistro actual:\n- Peso: ${ultimo.peso} kg\n- Cintura: ${ultimo.cintura} cm\n\n${anterior ? `Registro anterior:\n- Peso: ${anterior.peso} kg\n- Diferencia: ${(+ultimo.peso - +anterior.peso).toFixed(1)} kg` : "Primer registro."}\n\nRecomendación personalizada y accionable. Al final nota que es orientativa y no sustituye consulta médica.`;
+
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }) });
-      const data = await response.json();
-      setRecomendacionIA(data.content?.find(b => b.type === "text")?.text || "No se pudo generar la recomendación.");
-    } catch { setRecomendacionIA("Error al conectar con el asistente. Intenta de nuevo."); }
-    finally { setCargandoIA(false); }
+      const res  = await fetch("/api/claude", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error del servidor");
+      setRecomendacionIA(data.texto || "No se pudo generar la recomendación.");
+    } catch (err) {
+      setRecomendacionIA(err.message || "Error al conectar con el asistente. Intenta de nuevo.");
+    } finally {
+      setCargandoIA(false);
+    }
   };
 
   const guardarRegistro = () => {
@@ -692,7 +691,6 @@ export default function NutriPlan() {
     return { proteinas: enriquecer(FOOD_DB.proteinas), carbohidratos: enriquecer(FOOD_DB.carbohidratos), lipidos: enriquecer(FOOD_DB.lipidos) };
   }, [restriccion, protocolo, tiempoPrep]);
 
-  // ── ESTE HOOK DEBE ESTAR AQUÍ, ANTES DE CUALQUIER return CONDICIONAL ──
   const nombreComidas = useMemo(() => {
     if (protocolo === "ayuno16" || protocolo === "ketoAyuno") return numComidas === 2 ? ["Primera comida (12:00 pm)", "Última comida (7:00 pm)"] : ["Primera comida (12:00 pm)", "Comida (3:00 pm)", "Última comida (7:00 pm)"];
     if (protocolo === "ayuno18") return numComidas === 2 ? ["Primera comida (1:00 pm)", "Última comida (6:00 pm)"] : ["Primera comida (1:00 pm)", "Merienda (4:00 pm)", "Última comida (6:30 pm)"];
@@ -985,24 +983,72 @@ export default function NutriPlan() {
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${info.color}22`, border: `2px solid ${info.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto 16px" }}>{objInfo?.icon}</div>
             <div style={{ fontSize: 11, letterSpacing: 3, color: info.color, textTransform: "uppercase", marginBottom: 8 }}>Diagnóstico completo</div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, margin: 0 }}>{info.titulo}</h2>
-            <p style={{ color: "#666", fontSize: 14, marginTop: 10, lineHeight: 1.7 }}>{info.desc}</p>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, margin: "0 0 10px" }}>{info.titulo}</h2>
+            <p style={{ color: "#888", fontSize: 14, lineHeight: 1.6, margin: 0 }}>{info.desc}</p>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 16, padding: "18px 20px", border: "1px solid rgba(255,255,255,0.08)", marginBottom: 20 }}>
-            <div style={{ fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Distribución de macros asignada</div>
-            <div style={{ display: "flex" }}>
-              {[["🥩", "Proteína", Math.round(dist2.p * 100), "#81C784"], ["🌾", "Carbos", Math.round(dist2.c * 100), "#64B5F6"], ["🥑", "Lípidos", Math.round(dist2.l * 100), "#FFB74D"]].map(([icon, label, pct, color]) => (
-                <div key={label} style={{ flex: 1, textAlign: "center", padding: "10px 0" }}>
-                  <div style={{ fontSize: 20 }}>{icon}</div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color, fontFamily: "'Playfair Display', serif", marginTop: 4 }}>{pct}%</div>
-                  <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{label}</div>
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: info.color, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Distribución de macros base</div>
+            {[["🥩 Proteínas", dist2.p, "#81C784"], ["🌾 Carbohidratos", dist2.c, "#64B5F6"], ["🥑 Lípidos", dist2.l, "#FFB74D"]].map(([label, pct, color]) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span style={{ color: "#aaa" }}>{label}</span><span style={{ color, fontWeight: 700 }}>{Math.round(pct * 100)}%</span></div>
+                <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 6 }}><div style={{ width: `${pct * 100}%`, background: color, height: "100%", borderRadius: 99 }} /></div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+            {SOMATOTIPOS.map(s => (
+              <button key={s.id} onClick={() => setSomatotipo(s.id)} style={{ padding: "14px 12px", borderRadius: 14, border: "none", cursor: "pointer", background: somatotipo === s.id ? `${info.color}15` : "rgba(255,255,255,0.04)", outline: somatotipo === s.id ? `2px solid ${info.color}` : "2px solid transparent", textAlign: "left" }}>
+                <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 3 }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: "#666", lineHeight: 1.4 }}>{s.desc}</div>
+                {somatotipo === s.id && <div style={{ fontSize: 10, color: info.color, marginTop: 6, lineHeight: 1.4 }}>{s.nota}</div>}
+              </button>
+            ))}
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px 18px", marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Datos físicos (opcional)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[{ key: "peso", label: "Peso (kg)", placeholder: "75" }, { key: "talla", label: "Talla (cm)", placeholder: "175" }, { key: "edad", label: "Edad", placeholder: "30" }].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: 9, color: "#666", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label>
+                  <input type="number" placeholder={placeholder} value={perfil[key]} onChange={e => setPerfil(p => ({ ...p, [key]: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                 </div>
               ))}
             </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[{ key: "cintura", label: "Cintura (cm)", placeholder: "85" }, { key: "cuello", label: "Cuello (cm)", placeholder: "38" }, { key: "cadera", label: "Cadera (cm)", placeholder: "95" }].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: 9, color: "#666", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label>
+                  <input type="number" placeholder={placeholder} value={perfil[key]} onChange={e => setPerfil(p => ({ ...p, [key]: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 9, color: "#666", letterSpacing: 1, textTransform: "uppercase" }}>Sexo</label>
+                <select value={perfil.sexo} onChange={e => setPerfil(p => ({ ...p, sexo: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 13, outline: "none" }}>
+                  <option value="M">Masculino</option><option value="F">Femenino</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 9, color: "#666", letterSpacing: 1, textTransform: "uppercase" }}>Actividad</label>
+                <select value={perfil.actividad} onChange={e => setPerfil(p => ({ ...p, actividad: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 13, outline: "none" }}>
+                  <option value="sedentario">Sedentario</option><option value="ligero">Ligero</option><option value="moderado">Moderado</option><option value="activo">Activo</option><option value="muyactivo">Muy activo</option>
+                </select>
+              </div>
+            </div>
+            {tdee && (
+              <div style={{ marginTop: 14, padding: "12px 14px", background: `${info.color}0d`, border: `1px solid ${info.color}33`, borderRadius: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center" }}>
+                  {[[tdee, "TDEE", "kcal/día"], [calMeta, "Meta", "kcal/día"], imc ? [imc.toFixed(1), "IMC", imcLabel] : null, pctGrasa ? [pctGrasa.toFixed(1) + "%", "Grasa", "corporal"] : null].filter(Boolean).map(([val, label, sub], i) => (
+                    <div key={i}><div style={{ fontSize: 18, fontWeight: 700, color: info.color }}>{val}</div><div style={{ fontSize: 10, color: "#888" }}>{label}</div><div style={{ fontSize: 9, color: "#555" }}>{sub}</div></div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          {restriccion !== "ninguna" && <div style={{ background: "rgba(100,181,246,0.07)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#64B5F6" }}>ℹ️ Ajustamos tu lista de alimentos según tu restricción alimentaria.</div>}
-          <button onClick={() => setScreen("protocolo")} style={{ width: "100%", padding: "16px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>Elegir mi protocolo →</button>
-          <button onClick={() => setScreen("cuestionario")} style={{ marginTop: 12, width: "100%", padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>← Repetir diagnóstico</button>
+          <button onClick={() => setScreen("protocolo")} style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none", background: info.color, color: "#000", fontWeight: 700, fontSize: 16, cursor: "pointer", marginBottom: 10 }}>Elegir protocolo →</button>
+          <button onClick={() => setScreen("app")} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `1.5px solid ${info.color}`, background: "transparent", color: info.color, fontWeight: 600, fontSize: 15, cursor: "pointer" }}>Ir directo al plan →</button>
         </div>
       </div>
     );
@@ -1010,498 +1056,169 @@ export default function NutriPlan() {
 
   // ── CUESTIONARIO ──────────────────────────────────────────────────────
   if (screen === "cuestionario") {
-    const pregunta = PREGUNTAS[preguntaActual]; const pct = Math.round((preguntaActual / PREGUNTAS.length) * 100);
+    const pq = PREGUNTAS[preguntaActual];
+    const pct = ((preguntaActual) / PREGUNTAS.length) * 100;
     return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px 60px" }}>
+      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
         <div style={{ width: "100%", maxWidth: 420 }}>
-          <div style={{ textAlign: "center", marginBottom: 36 }}>
-            <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase", marginBottom: 8 }}>NutriPlan · Diagnóstico</div>
-            <div style={{ fontSize: 13, color: "#555" }}>Hola, {registro.nombre} 👋 Cuéntanos un poco sobre ti</div>
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, color: "#555" }}><span>Pregunta {preguntaActual + 1} de {PREGUNTAS.length}</span><span>{Math.round(pct)}%</span></div>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 4 }}><div style={{ width: `${pct}%`, background: "#FFB74D", height: "100%", borderRadius: 99, transition: "width 0.4s ease" }} /></div>
           </div>
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: "#FFB74D" }}>Pregunta {preguntaActual + 1} de {PREGUNTAS.length}</span>
-              <span style={{ fontSize: 11, color: "#555" }}>{pct}% completado</span>
-            </div>
-            <div style={{ background: "rgba(255,255,255,0.07)", borderRadius: 99, height: 6, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, background: "#FFB74D", height: "100%", borderRadius: 99, transition: "width 0.4s ease" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-              {PREGUNTAS.map((_, i) => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i < preguntaActual ? "#81C784" : i === preguntaActual ? "#FFB74D" : "rgba(255,255,255,0.12)", transition: "all 0.3s" }} />)}
-            </div>
-          </div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 24, lineHeight: 1.3 }}>{pregunta.texto}</h2>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, margin: "0 0 28px", lineHeight: 1.3 }}>{pq.texto}</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {pregunta.opciones.map(op => (
-              <button key={op.id} onClick={() => handleRespuesta(pregunta.id, op.id)} style={{ padding: "16px 18px", borderRadius: 16, border: "1.5px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14, color: "#fff", transition: "all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,183,77,0.12)"; e.currentTarget.style.borderColor = "#FFB74D"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }}>
-                <span style={{ fontSize: 24, minWidth: 32, textAlign: "center" }}>{op.icon}</span>
-                <span style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}>{op.label}</span>
-                <span style={{ marginLeft: "auto", color: "#444", fontSize: 18 }}>›</span>
+            {pq.opciones.map(op => (
+              <button key={op.id} onClick={() => handleRespuesta(pq.id, op.id)} style={{ padding: "16px 18px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "#fff", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14, transition: "all 0.15s" }}>
+                <span style={{ fontSize: 22 }}>{op.icon}</span>
+                <span style={{ fontSize: 15, lineHeight: 1.4 }}>{op.label}</span>
               </button>
             ))}
           </div>
-          {preguntaActual > 0 && <button onClick={() => setPreguntaActual(i => i - 1)} style={{ marginTop: 20, background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 13, width: "100%", textAlign: "center" }}>← Pregunta anterior</button>}
-          <button onClick={() => setScreen("app")} style={{ marginTop: 10, background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 12, width: "100%", textAlign: "center" }}>Omitir diagnóstico — elegir manualmente</button>
         </div>
       </div>
     );
   }
 
   // ── APP PRINCIPAL ─────────────────────────────────────────────────────
-  const stepLabels = ["Perfil", "Cuerpo", "Objetivo", "Alimentos", "Comidas", "Resumen"];
+  const catLabels = { proteinas: { label: "Proteínas", color: "#81C784", icon: "🥩" }, carbohidratos: { label: "Carbohidratos", color: "#64B5F6", icon: "🌾" }, lipidos: { label: "Lípidos", color: "#FFB74D", icon: "🥑" } };
+  const pctMacros = totales.calorias > 0 ? {
+    p: (totales.proteinas * 4 / totales.calorias) * 100,
+    c: (totales.carbos * 4 / totales.calorias) * 100,
+    l: (totales.lipidos * 9 / totales.calorias) * 100,
+  } : { p: 0, c: 0, l: 0 };
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 60 }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 100 }}>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-      <div style={{ padding: "20px 20px 0" }}>
-        <div style={{ background: daysLeft <= 2 ? "rgba(239,83,80,0.10)" : "rgba(255,183,77,0.07)", border: `1px solid ${daysLeft <= 2 ? "rgba(239,83,80,0.3)" : "rgba(255,183,77,0.18)"}`, borderRadius: 12, padding: "10px 14px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, color: daysLeft <= 2 ? "#ef5350" : "#FFB74D", fontWeight: 600 }}>{daysLeft <= 2 ? "⚠️" : "✦"} {daysLeft} día{daysLeft !== 1 ? "s" : ""} de prueba gratis</span>
-            {daysLeft <= 2 && <button style={{ fontSize: 11, background: "#ef5350", border: "none", borderRadius: 8, padding: "4px 10px", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Suscribirme</button>}
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.07)", borderRadius: 99, height: 4, overflow: "hidden" }}>
-            <div style={{ width: `${trialPct}%`, background: daysLeft <= 2 ? "#ef5350" : "#FFB74D", height: "100%", borderRadius: 99 }} />
-          </div>
-        </div>
-        <div style={{ textAlign: "center", marginBottom: 14 }}>
+
+      {/* Header */}
+      <div style={{ padding: "20px 20px 0", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
           <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriPlan</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 }}>
-            <span style={{ fontSize: 13, color: "#555" }}>Hola, {registro.nombre || "usuario"} 👋</span>
-            <button onClick={() => { setUpgradeFeature(null); setScreen("upgrade"); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, border: "none", cursor: "pointer", background: TIERS[tier]?.color + "22", color: TIERS[tier]?.color, fontWeight: 700 }}>{TIERS[tier]?.icon} {TIERS[tier]?.label}</button>
-          </div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Hola, {registro.nombre || "usuario"} 👋</div>
         </div>
-        <div style={{ display: "flex", justifyContent: "center", gap: 4, overflowX: "auto" }}>
-          {stepLabels.map((s, i) => (
-            <div key={i} onClick={() => i <= step && setStep(i)} style={{ display: "flex", alignItems: "center", gap: 4, cursor: i <= step ? "pointer" : "default", opacity: i > step ? 0.25 : 1 }}>
-              <div style={{ width: 24, height: 24, borderRadius: "50%", background: i === step ? "#FFB74D" : i < step ? "#81C784" : "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: i <= step ? "#000" : "#666", flexShrink: 0 }}>{i < step ? "✓" : i + 1}</div>
-              {i === step && <span style={{ fontSize: 10, color: "#FFB74D", whiteSpace: "nowrap" }}>{s}</span>}
-            </div>
-          ))}
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>Trial: {daysLeft}d restantes</div>
+          <div style={{ width: 80, background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 4 }}><div style={{ width: `${trialPct}%`, background: daysLeft < 3 ? "#ef5350" : "#FFB74D", height: "100%", borderRadius: 99 }} /></div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "22px 20px 0" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 16px" }}>
 
-        {/* STEP 0 */}
-        {step === 0 && (
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 20 }}>Datos corporales</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13 }}>
-              {[{ key: "peso", label: "Peso (kg)", placeholder: "75" }, { key: "talla", label: "Talla (cm)", placeholder: "175" }].map(({ key, label, placeholder }) => (
-                <div key={key}><label style={{ fontSize: 11, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label><input type="number" placeholder={placeholder} value={perfil[key]} onChange={e => setPerfil(p => ({ ...p, [key]: e.target.value }))} style={inputStyle} /></div>
-              ))}
-              <div style={{ gridColumn: "1 / -1" }}><label style={{ fontSize: 11, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>Edad</label><input type="number" placeholder="35" value={perfil.edad} onChange={e => setPerfil(p => ({ ...p, edad: e.target.value }))} style={inputStyle} /></div>
-              <div>
-                <label style={{ fontSize: 11, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>Sexo</label>
-                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                  {[["M", "Hombre"], ["F", "Mujer"]].map(([v, l]) => <button key={v} onClick={() => setPerfil(p => ({ ...p, sexo: v }))} style={{ flex: 1, padding: "12px", borderRadius: 12, cursor: "pointer", background: perfil.sexo === v ? "#FFB74D" : "rgba(255,255,255,0.06)", border: "none", color: perfil.sexo === v ? "#000" : "#fff", fontWeight: 600, fontSize: 14 }}>{l}</button>)}
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>Actividad</label>
-                <select value={perfil.actividad} onChange={e => setPerfil(p => ({ ...p, actividad: e.target.value }))} style={{ ...inputStyle, background: "#1c2333" }}>
-                  {Object.entries({ sedentario: "Sedentario", ligero: "Ligero", moderado: "Moderado", activo: "Activo", muyactivo: "Muy activo" }).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </div>
+        {/* Meta calórica */}
+        <div style={{ background: "linear-gradient(135deg, rgba(255,183,77,0.08), rgba(129,199,132,0.05))", border: "1.5px solid rgba(255,183,77,0.2)", borderRadius: 18, padding: "16px 18px", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, color: "#FFB74D", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600 }}>Meta diaria</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>{Math.round(totales.calorias)} <span style={{ fontSize: 13, color: "#555", fontWeight: 400 }}>/ {calMeta} kcal</span></div>
             </div>
-            <div style={{ marginTop: 18, padding: "14px 16px", background: "rgba(100,181,246,0.07)", border: "1px solid rgba(100,181,246,0.18)", borderRadius: 14 }}>
-              <div style={{ fontSize: 11, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, fontWeight: 600 }}>📏 Medidas corporales <span style={{ color: "#555", fontWeight: 400 }}>(para calcular % grasa)</span></div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 12, lineHeight: 1.6 }}>Mide con cinta métrica en cm. Cintura: a la altura del ombligo. Cuello: parte más estrecha. {perfil.sexo === "F" && "Cadera: parte más ancha."}</div>
-              <div style={{ display: "grid", gridTemplateColumns: perfil.sexo === "F" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
-                {[{ key: "cintura", label: "Cintura (cm)", placeholder: "85" }, { key: "cuello", label: "Cuello (cm)", placeholder: "38" }, ...(perfil.sexo === "F" ? [{ key: "cadera", label: "Cadera (cm)", placeholder: "95" }] : [])].map(({ key, label, placeholder }) => (
-                  <div key={key}><label style={{ fontSize: 10, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label><input type="number" placeholder={placeholder} value={perfil[key]} onChange={e => setPerfil(p => ({ ...p, [key]: e.target.value }))} style={{ ...inputStyle, marginTop: 4, padding: "10px 12px", fontSize: 14 }} /></div>
-                ))}
-              </div>
-            </div>
-            {imc && (
-              <div style={{ marginTop: 14, background: "rgba(255,255,255,0.03)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                <div style={{ padding: "10px 16px", background: "rgba(255,183,77,0.08)", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: 11, color: "#FFB74D", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600 }}>📊 Tu diagnóstico</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-                  {[
-                    { label: "IMC", value: imc.toFixed(1), sub: imcLabel, color: +imc >= 18.5 && +imc < 25 ? "#81C784" : "#FFB74D" },
-                    { label: "TDEE", value: tdee ? `${tdee}` : "—", sub: "kcal/día", color: "#64B5F6" },
-                    { label: "% Grasa corporal", value: pctGrasa ? `${pctGrasa.toFixed(1)}%` : "Agrega medidas", sub: pctGrasa ? (perfil.sexo === "M" ? (pctGrasa < 6 ? "Esencial" : pctGrasa < 14 ? "Atlético" : pctGrasa < 18 ? "Fitness" : pctGrasa < 25 ? "Normal" : "Exceso") : (pctGrasa < 14 ? "Esencial" : pctGrasa < 21 ? "Atlético" : pctGrasa < 25 ? "Fitness" : pctGrasa < 32 ? "Normal" : "Exceso")) : "", color: "#CE93D8" },
-                    { label: "Masa magra", value: masaMagra ? `${masaMagra.toFixed(1)} kg` : "—", sub: "músculo + hueso", color: "#81C784" },
-                    { label: "Índice cin./altura", value: indCinturaAltura ? indCinturaAltura.toFixed(2) : "—", sub: indCinturaAltura ? (indCinturaAltura < 0.5 ? "Óptimo ✓" : indCinturaAltura < 0.6 ? "Moderado" : "Alto riesgo") : "", color: indCinturaAltura && indCinturaAltura < 0.5 ? "#81C784" : "#FFB74D" },
-                    { label: "Meta proteína", value: proteinaMeta ? `${proteinaMeta} g` : "—", sub: `${PROTEINA_G_KG[objetivo] || 1.6} g/kg · objetivo actual`, color: "#FFB74D" },
-                  ].map(({ label, value, sub, color }, i) => (
-                    <div key={label} style={{ padding: "13px 16px", borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", borderRight: i % 2 === 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                      <div style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: "'Playfair Display', serif" }}>{value}</div>
-                      {sub && <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{sub}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <button onClick={() => setStep(1)} disabled={!perfil.peso || !perfil.talla || !perfil.edad} style={{ marginTop: 18, width: "100%", padding: "15px", borderRadius: 14, border: "none", background: perfil.peso && perfil.talla && perfil.edad ? "#FFB74D" : "#222", color: perfil.peso && perfil.talla && perfil.edad ? "#000" : "#555", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>Continuar →</button>
-          </div>
-        )}
-
-        {/* STEP 1 */}
-        {step === 1 && (
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 6 }}>¿Cuál es tu tipo de cuerpo?</h2>
-            <p style={{ color: "#666", fontSize: 13, marginBottom: 20 }}>Esto ajusta tu distribución de macros de forma personalizada.</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {SOMATOTIPOS.map(s => (
-                <button key={s.id} onClick={() => setSomatotipo(s.id)} style={{ padding: "16px 18px", borderRadius: 16, border: "none", cursor: "pointer", textAlign: "left", background: somatotipo === s.id ? "rgba(255,183,77,0.12)" : "rgba(255,255,255,0.04)", outline: somatotipo === s.id ? "2px solid #FFB74D" : "2px solid transparent", transition: "all 0.2s" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{ fontSize: 28 }}>{s.icon}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{s.label}</div>
-                      <div style={{ color: "#888", fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>{s.desc}</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{s.rasgos.map(r => <span key={r} style={{ fontSize: 10, background: "rgba(255,255,255,0.07)", borderRadius: 99, padding: "3px 9px", color: "#aaa" }}>{r}</span>)}</div>
-                    </div>
-                    {somatotipo === s.id && <span style={{ color: "#FFB74D", fontSize: 18 }}>✓</span>}
-                  </div>
-                  {somatotipo === s.id && <div style={{ marginTop: 12, padding: "10px 12px", background: "rgba(0,0,0,0.25)", borderRadius: 10 }}><div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Ajuste aplicado a tus macros</div><div style={{ fontSize: 12, color: "#FFB74D", lineHeight: 1.6 }}>{s.nota}</div></div>}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 22 }}>
-              <button onClick={() => setStep(0)} style={{ flex: 1, padding: "14px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#fff", cursor: "pointer" }}>← Atrás</button>
-              <button onClick={() => setStep(2)} style={{ flex: 2, padding: "14px", borderRadius: 14, border: "none", background: somatotipo ? "#FFB74D" : "#333", color: somatotipo ? "#000" : "#555", fontWeight: 700, cursor: somatotipo ? "pointer" : "default" }}>{somatotipo ? "Continuar →" : "Selecciona un tipo"}</button>
-            </div>
-            <div style={{ textAlign: "center", marginTop: 10 }}><span onClick={() => { setSomatotipo(null); setStep(2); }} style={{ fontSize: 12, color: "#555", cursor: "pointer", textDecoration: "underline" }}>No sé mi tipo — omitir</span></div>
-          </div>
-        )}
-
-        {/* STEP 2 */}
-        {step === 2 && (
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 6 }}>¿Cuál es tu objetivo?</h2>
-            <p style={{ color: "#666", fontSize: 13, marginBottom: 20 }}>{somatotipo && <span style={{ color: "#FFB74D" }}>Somatotipo {SOMATOTIPOS.find(s => s.id === somatotipo)?.label} · </span>}La distribución se ajusta a tu perfil.</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-              {OBJETIVOS.map(o => {
-                const tabla = DISTRIBUCIONES[o.id] || DISTRIBUCIONES.mantener; const dAdj = tabla[somatotipo] || tabla.default; const tot = dAdj.p + dAdj.c + dAdj.l;
-                return (
-                  <button key={o.id} onClick={() => setObjetivo(o.id)} style={{ padding: "15px 17px", borderRadius: 16, border: "none", cursor: "pointer", textAlign: "left", background: objetivo === o.id ? "rgba(255,183,77,0.12)" : "rgba(255,255,255,0.04)", outline: objetivo === o.id ? "2px solid #FFB74D" : "2px solid transparent", transition: "all 0.2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span style={{ fontSize: 22 }}>{o.icon}</span>
-                      <div style={{ flex: 1 }}><div style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>{o.label}</div><div style={{ color: "#777", fontSize: 12, marginTop: 2 }}>{o.desc}</div></div>
-                      {objetivo === o.id && <span style={{ color: "#FFB74D" }}>✓</span>}
-                    </div>
-                    {objetivo === o.id && tdee && (
-                      <div style={{ marginTop: 11, padding: "10px 12px", background: "rgba(0,0,0,0.25)", borderRadius: 10 }}>
-                        <div style={{ fontSize: 11, color: "#888" }}>Meta calórica diaria</div>
-                        <div style={{ fontSize: 24, fontWeight: 700, color: "#FFB74D", marginTop: 2 }}>{Math.round(tdee * dAdj.factor)} kcal</div>
-                        <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 11, color: "#aaa" }}><span>🥩 {Math.round((dAdj.p / tot) * 100)}% P</span><span>🌾 {Math.round((dAdj.c / tot) * 100)}% C</span><span>🥑 {Math.round((dAdj.l / tot) * 100)}% L</span></div>
-                        {(o.id === "bajar" || o.id === "mantener" || o.id === "masa") && (
-                          <button onClick={e => { e.stopPropagation(); const guiaMap = { bajar: "estandar", mantener: "mantener_guia", masa: "masa" }; setGuiaActiva(guiaMap[o.id]); setGuiaOrigen("app"); setScreen("guia"); }} style={{ marginTop: 10, width: "100%", padding: "8px", borderRadius: 9, border: "1.5px solid rgba(206,147,216,0.3)", background: "transparent", color: "#CE93D8", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>📖 Ver guía completa de esta dieta</button>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 22 }}>
-              <button onClick={() => setStep(1)} style={{ flex: 1, padding: "14px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#fff", cursor: "pointer" }}>← Atrás</button>
-              <button onClick={() => setStep(3)} style={{ flex: 2, padding: "14px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, cursor: "pointer" }}>Elegir alimentos →</button>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: "#555", marginBottom: 2 }}>Protocolo</div>
+              <button onClick={() => setScreen("protocolo")} style={{ fontSize: 12, color: "#FFB74D", background: "rgba(255,183,77,0.1)", border: "1px solid rgba(255,183,77,0.25)", borderRadius: 8, padding: "4px 10px", cursor: "pointer" }}>{PROTOCOLOS[protocolo]?.icon} {PROTOCOLOS[protocolo]?.label}</button>
             </div>
           </div>
-        )}
-
-        {/* STEP 3 */}
-        {step === 3 && (
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 4 }}>Elige tus alimentos</h2>
-            <p style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>Selecciona lo que te gusta. Toca <span style={{ color: "#FFB74D" }}>editar</span> para poner el precio de tu mercado.</p>
-            {(protocolo === "keto" || protocolo === "ketoAyuno") && <div style={{ padding: "10px 14px", background: "rgba(255,183,77,0.08)", border: "1px solid rgba(255,183,77,0.2)", borderRadius: 12, marginBottom: 14, fontSize: 12, color: "#FFB74D", lineHeight: 1.6 }}>🥑 Protocolo Keto activo — alimentos altos en carbohidratos fueron removidos de tu lista.</div>}
-            {(protocolo === "ayuno16" || protocolo === "ayuno18") && <div style={{ padding: "10px 14px", background: "rgba(100,181,246,0.07)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 12, marginBottom: 14, fontSize: 12, color: "#64B5F6", lineHeight: 1.6 }}>⏱️ Ayuno Intermitente activo — tu proteína está elevada para proteger músculo durante el ayuno.</div>}
-
-            <div style={{ padding: "13px 15px", background: "rgba(255,255,255,0.04)", borderRadius: 14, marginBottom: 18, border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
-                <span style={{ fontSize: 13, color: "#aaa" }}>Calorías</span>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: "#4CAF50", fontWeight: 600 }}>💰 ${totales.costo.toFixed(0)}/día</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: pctCal > 105 ? "#ef5350" : "#FFB74D" }}>{Math.round(totales.calorias)} / {calMeta} kcal</span>
-                </div>
-              </div>
-              <Bar value={totales.calorias} max={calMeta} color={pctCal > 105 ? "#ef5350" : "#FFB74D"} />
-              <div style={{ display: "flex", gap: 9, marginTop: 10 }}>
-                {[["Prot.", totales.proteinas, Math.round(calMeta * dist.p / 4), "#81C784"], ["Carbos", totales.carbos, Math.round(calMeta * dist.c / 4), "#64B5F6"], ["Líp.", totales.lipidos, Math.round(calMeta * dist.l / 9), "#FFB74D"]].map(([l, v, max, c]) => (
-                  <div key={l} style={{ flex: 1 }}><div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>{l} <span style={{ color: c }}>{v.toFixed(0)}g</span></div><Bar value={v} max={max} color={c} /></div>
-                ))}
-              </div>
-              {pctCal > 105 && <div style={{ marginTop: 8, fontSize: 12, color: "#ef5350" }}>⚠️ Excedes tu meta — considera quitar algún alimento.</div>}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ fontSize: 12, color: "#666" }}>{[...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos].length} alimentos seleccionados</span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => setVistaTabla(false)} style={{ padding: "5px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: !vistaTabla ? "#FFB74D" : "rgba(255,255,255,0.07)", color: !vistaTabla ? "#000" : "#888", fontSize: 11, fontWeight: !vistaTabla ? 700 : 400 }}>☰ Cards</button>
-                <button onClick={() => setVistaTabla(true)}  style={{ padding: "5px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: vistaTabla  ? "#FFB74D" : "rgba(255,255,255,0.07)", color: vistaTabla  ? "#000" : "#888", fontSize: 11, fontWeight: vistaTabla  ? 700 : 400 }}>📊 Tabla</button>
-              </div>
-            </div>
-
-            {vistaTabla && (
-              <div style={{ marginBottom: 20, overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead><tr style={{ background: "rgba(255,255,255,0.05)" }}>{["Alimento", "Porción", "P (g)", "C (g)", "L (g)", "kcal", ""].map(h => <th key={h} style={{ padding: "8px 6px", textAlign: h === "Alimento" ? "left" : "center", color: "#888", fontWeight: 600, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {[...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos].map((f, i) => {
-                      const factor = (porciones[f.id] ?? f.porcion) / f.porcion;
-                      const catColor = seleccion.proteinas.find(x => x.id === f.id) ? "#81C784" : seleccion.carbohidratos.find(x => x.id === f.id) ? "#64B5F6" : "#FFB74D";
-                      return (
-                        <tr key={f.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}>
-                          <td style={{ padding: "9px 6px" }}><div style={{ fontWeight: 600, color: catColor, fontSize: 12 }}>{f.nombre}</div></td>
-                          <td style={{ padding: "9px 6px", textAlign: "center" }}><input type="number" value={porciones[f.id] ?? f.porcion} onChange={e => setPorciones(p => ({ ...p, [f.id]: +e.target.value }))} style={{ width: 52, padding: "4px 6px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, color: "#fff", fontSize: 11, textAlign: "center", outline: "none" }} /><span style={{ fontSize: 9, color: "#555", marginLeft: 2 }}>g</span></td>
-                          <td style={{ padding: "9px 6px", textAlign: "center", color: "#81C784", fontWeight: 600 }}>{(f.proteinas * factor).toFixed(1)}</td>
-                          <td style={{ padding: "9px 6px", textAlign: "center", color: "#64B5F6", fontWeight: 600 }}>{(f.carbos    * factor).toFixed(1)}</td>
-                          <td style={{ padding: "9px 6px", textAlign: "center", color: "#FFB74D", fontWeight: 600 }}>{(f.lipidos   * factor).toFixed(1)}</td>
-                          <td style={{ padding: "9px 6px", textAlign: "center", color: "#fff",    fontWeight: 700 }}>{Math.round(f.calorias * factor)}</td>
-                          <td style={{ padding: "9px 6px", textAlign: "center" }}>
-                            <button onClick={() => { const cat = seleccion.proteinas.find(x => x.id === f.id) ? "proteinas" : seleccion.carbohidratos.find(x => x.id === f.id) ? "carbohidratos" : "lipidos"; setSeleccion(prev => ({ ...prev, [cat]: prev[cat].filter(x => x.id !== f.id) })); }} style={{ background: "rgba(239,83,80,0.15)", border: "none", borderRadius: 6, padding: "3px 8px", color: "#ef5350", cursor: "pointer", fontSize: 13 }}>×</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {[...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos].length > 0 && (
-                      <tr style={{ background: "rgba(255,183,77,0.06)", borderTop: "2px solid rgba(255,183,77,0.2)" }}>
-                        <td style={{ padding: "10px 6px", fontWeight: 700, color: "#FFB74D", fontSize: 12 }}>TOTAL</td>
-                        <td style={{ padding: "10px 6px", textAlign: "center", color: "#555", fontSize: 11 }}>—</td>
-                        <td style={{ padding: "10px 6px", textAlign: "center", color: "#81C784", fontWeight: 700 }}>{totales.proteinas.toFixed(1)}</td>
-                        <td style={{ padding: "10px 6px", textAlign: "center", color: "#64B5F6", fontWeight: 700 }}>{totales.carbos.toFixed(1)}</td>
-                        <td style={{ padding: "10px 6px", textAlign: "center", color: "#FFB74D", fontWeight: 700 }}>{totales.lipidos.toFixed(1)}</td>
-                        <td style={{ padding: "10px 6px", textAlign: "center", color: "#fff",    fontWeight: 700 }}>{Math.round(totales.calorias)}</td>
-                        <td></td>
-                      </tr>
-                    )}
-                    <tr style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px dashed rgba(255,255,255,0.08)" }}>
-                      <td style={{ padding: "8px 6px", color: "#555", fontSize: 11 }}>META</td><td style={{ padding: "8px 6px", textAlign: "center", color: "#555", fontSize: 11 }}>—</td>
-                      <td style={{ padding: "8px 6px", textAlign: "center", color: "#555", fontSize: 11 }}>{Math.round(calMeta * dist.p / 4)}</td>
-                      <td style={{ padding: "8px 6px", textAlign: "center", color: "#555", fontSize: 11 }}>{Math.round(calMeta * dist.c / 4)}</td>
-                      <td style={{ padding: "8px 6px", textAlign: "center", color: "#555", fontSize: 11 }}>{Math.round(calMeta * dist.l / 9)}</td>
-                      <td style={{ padding: "8px 6px", textAlign: "center", color: "#555", fontSize: 11 }}>{calMeta}</td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, color: "#FFB74D", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, fontWeight: 600 }}>🔍 Buscar cualquier alimento</div>
-              <div style={{ position: "relative" }}>
-                <input type="text" placeholder="Escribe un alimento — ej: pechuga de pollo..." value={busqueda} onChange={e => { setBusqueda(e.target.value); if (e.target.value.length >= 2) { clearTimeout(window._searchTimer); window._searchTimer = setTimeout(() => buscarAlimento(e.target.value), 600); } else { setResultadosBusqueda([]); } }} style={{ ...inputStyle, paddingRight: "40px", fontSize: 14 }} />
-                {buscando && <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, border: "2px solid #FFB74D", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />}
-              </div>
-              {resultadosBusqueda.length > 0 && (
-                <div style={{ marginTop: 8, background: "#131a27", border: "1.5px solid rgba(255,183,77,0.2)", borderRadius: 14, overflow: "hidden" }}>
-                  <div style={{ padding: "8px 14px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 10, color: "#555" }}>{resultadosBusqueda.length} resultados de FatSecret · Toca para agregar al plan</div>
-                  <div style={{ maxHeight: 280, overflowY: "auto" }}>
-                    {resultadosBusqueda.map(food => {
-                      const yaSeleccionado = seleccion[food.cat]?.find(f => f.id === food.id);
-                      return (
-                        <div key={food.id} onClick={() => { if (!yaSeleccionado) { setSeleccion(prev => ({ ...prev, [food.cat]: [...prev[food.cat], food] })); } else { setSeleccion(prev => ({ ...prev, [food.cat]: prev[food.cat].filter(f => f.id !== food.id) })); } }} style={{ padding: "11px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", background: yaSeleccionado ? "rgba(255,183,77,0.08)" : "transparent", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: yaSeleccionado ? "#FFB74D" : "#fff" }}>{food.nombre}</div>
-                            <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{food.porcion}g · <span style={{ color: "#81C784" }}>{food.proteinas}P</span> · <span style={{ color: "#64B5F6" }}>{food.carbos}C</span> · <span style={{ color: "#FFB74D" }}>{food.lipidos}L</span> · <b style={{ color: "#ddd" }}>{food.calorias} kcal</b></div>
-                          </div>
-                          <span style={{ fontSize: 18, color: yaSeleccionado ? "#FFB74D" : "#444", marginLeft: 10 }}>{yaSeleccionado ? "✓" : "+"}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {errorBusqueda && <div style={{ marginTop: 8, padding: "10px 14px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, fontSize: 12, color: "#888" }}>ℹ️ {errorBusqueda}</div>}
-            </div>
-
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 14, letterSpacing: 1 }}>— O elige de tu lista base —</div>
-
-            {[["proteinas", "🥩 Alta en Proteína", "#81C784"], ["carbohidratos", "🌾 Alta en Carbohidratos", "#64B5F6"], ["lipidos", "🥑 Alta en Lípidos", "#FFB74D"]].map(([cat, titulo, color]) => (
-              <div key={cat} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, fontWeight: 600 }}>{titulo}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                  {foodDbFiltrado[cat].filter(food => !food.bloqueado).map(food => (
-                    <FoodCard key={food.id} food={food} cat={cat} selected={!!seleccion[cat].find(f => f.id === food.id)} porciones={porciones} setPorciones={setPorciones} precios={precios} setPrecios={setPrecios} toggle={toggle} />
-                  ))}
-                  {foodDbFiltrado[cat].some(f => f.bloqueado) && (
-                    <div style={{ marginTop: 6 }}>
-                      <div style={{ fontSize: 10, color: "#444", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, paddingLeft: 2 }}>No disponibles con tu protocolo actual</div>
-                      {foodDbFiltrado[cat].filter(food => food.bloqueado).map(food => <BlockedFoodCard key={food.id} food={food} />)}
-                    </div>
-                  )}
-                </div>
+          <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 8, marginBottom: 12, overflow: "hidden" }}>
+            <div style={{ width: `${Math.min(pctCal, 100)}%`, height: "100%", background: pctCal > 110 ? "#ef5350" : pctCal > 95 ? "#FFB74D" : "#81C784", borderRadius: 99, transition: "width 0.5s ease" }} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            {[["🥩", "Prot.", totales.proteinas.toFixed(1), "g", "#81C784"], ["🌾", "Carbs", totales.carbos.toFixed(1), "g", "#64B5F6"], ["🥑", "Líp.", totales.lipidos.toFixed(1), "g", "#FFB74D"], ["💰", "Costo", `$${totales.costo.toFixed(0)}`, "", "#4CAF50"]].map(([icon, label, val, unit, color]) => (
+              <div key={label} style={{ textAlign: "center", padding: "8px 4px", background: "rgba(0,0,0,0.2)", borderRadius: 10 }}>
+                <div style={{ fontSize: 14, marginBottom: 2 }}>{icon}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color }}>{val}<span style={{ fontSize: 9, color: "#555" }}>{unit}</span></div>
+                <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
               </div>
             ))}
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={() => setStep(2)} style={{ flex: 1, padding: "14px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#fff", cursor: "pointer" }}>← Atrás</button>
-              <button onClick={() => setStep(4)} style={{ flex: 2, padding: "14px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, cursor: "pointer" }}>Organizar comidas →</button>
-            </div>
           </div>
-        )}
-
-        {/* STEP 4 */}
-        {step === 4 && (
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 4 }}>Organiza tus comidas</h2>
-            <p style={{ color: "#666", fontSize: 13, marginBottom: 6 }}>Protocolo: <span style={{ color: "#FFB74D" }}>{PROTOCOLOS[protocolo]?.label}</span> · {numComidas} comidas al día</p>
-            {(protocolo === "ayuno16" || protocolo === "ayuno18" || protocolo === "ketoAyuno") && <div style={{ padding: "10px 14px", background: "rgba(255,183,77,0.08)", border: "1px solid rgba(255,183,77,0.2)", borderRadius: 12, marginBottom: 16, fontSize: 12, color: "#FFB74D", lineHeight: 1.6 }}>⏱️ Ventana de alimentación: {protocolo === "ayuno18" ? "6 horas · No comer antes de 1:00 pm" : "8 horas · No comer antes de 12:00 pm"}</div>}
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>Alimentos seleccionados</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                {[...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos].map(f => {
-                  const asignado = Object.values(planComidas).some(arr => arr.find(x => x.id === f.id));
-                  return <div key={f.id} style={{ padding: "6px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: asignado ? "rgba(129,199,132,0.12)" : "rgba(255,183,77,0.12)", border: `1px solid ${asignado ? "rgba(129,199,132,0.3)" : "rgba(255,183,77,0.3)"}`, color: asignado ? "#81C784" : "#FFB74D" }}>{asignado ? "✓ " : ""}{f.nombre}</div>;
-                })}
-              </div>
-            </div>
-            {nombreComidas.map(nombre => {
-              const comidaFoods = planComidas[nombre] || []; const allFoods = [...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos];
-              return (
-                <div key={nombre} style={{ marginBottom: 14, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{nombre}</div>
-                    <div style={{ fontSize: 11, color: "#555" }}>{comidaFoods.reduce((acc, f) => { const factor = (porciones[f.id] ?? f.porcion) / f.porcion; return acc + f.calorias * factor; }, 0).toFixed(0)} kcal</div>
-                  </div>
-                  {comidaFoods.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>{comidaFoods.map(f => <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", background: "rgba(255,183,77,0.1)", border: "1px solid rgba(255,183,77,0.25)", borderRadius: 99, fontSize: 11 }}>{f.nombre}<button onClick={() => setPlanComidas(p => ({ ...p, [nombre]: p[nombre].filter(x => x.id !== f.id) }))} style={{ background: "none", border: "none", color: "#ef5350", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>×</button></div>)}</div>}
-                  <select value="" onChange={e => { const food = allFoods.find(f => f.id === e.target.value); if (food) setPlanComidas(p => ({ ...p, [nombre]: [...(p[nombre] || []), food] })); }} style={{ width: "100%", padding: "8px 10px", background: "#1a2333", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: comidaFoods.length === 0 ? "#555" : "#888", fontSize: 12, outline: "none", cursor: "pointer" }}>
-                    <option value="">+ Agregar alimento a {nombre.split(" ")[0]}...</option>
-                    {allFoods.filter(f => !comidaFoods.find(x => x.id === f.id)).map(f => <option key={f.id} value={f.id}>{f.nombre} · {Math.round(f.calorias * ((porciones[f.id] ?? f.porcion) / f.porcion))} kcal</option>)}
-                  </select>
-                </div>
-              );
-            })}
-            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              <button onClick={() => setStep(3)} style={{ flex: 1, padding: "14px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#fff", cursor: "pointer" }}>← Atrás</button>
-              <button onClick={() => setStep(5)} style={{ flex: 2, padding: "14px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, cursor: "pointer" }}>Ver resumen →</button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 5 */}
-        {step === 5 && (
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, marginBottom: 4 }}>Tu plan del día</h2>
-            <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12, background: "rgba(255,183,77,0.12)", border: "1px solid rgba(255,183,77,0.25)", borderRadius: 99, padding: "3px 12px", color: "#FFB74D" }}>{OBJETIVOS.find(o => o.id === objetivo)?.icon} {OBJETIVOS.find(o => o.id === objetivo)?.label}</span>
-              {somatotipo && <span style={{ fontSize: 12, background: "rgba(129,199,132,0.10)", border: "1px solid rgba(129,199,132,0.2)", borderRadius: 99, padding: "3px 12px", color: "#81C784" }}>{SOMATOTIPOS.find(s => s.id === somatotipo)?.icon} {SOMATOTIPOS.find(s => s.id === somatotipo)?.label}</span>}
-              <span style={{ fontSize: 12, background: "rgba(100,181,246,0.10)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 99, padding: "3px 12px", color: "#64B5F6" }}>{PROTOCOLOS[protocolo]?.icon} {PROTOCOLOS[protocolo]?.label}</span>
-              <span style={{ fontSize: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 99, padding: "3px 12px", color: "#888" }}>🍽️ {numComidas} comidas · ⚡ {tiempoPrep === "rapido" ? "<10 min" : tiempoPrep === "moderado" ? "<20 min" : "Sin límite"}</span>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
-              {[{ label: "Calorías", value: Math.round(totales.calorias), meta: calMeta, unit: "kcal", color: "#FFB74D" }, { label: "Proteína", value: Math.round(totales.proteinas), meta: Math.round(calMeta * dist.p / 4), unit: "g", color: "#81C784" }, { label: "Carbos", value: Math.round(totales.carbos), meta: Math.round(calMeta * dist.c / 4), unit: "g", color: "#64B5F6" }, { label: "Lípidos", value: Math.round(totales.lipidos), meta: Math.round(calMeta * dist.l / 9), unit: "g", color: "#CE93D8" }].map(({ label, value, meta, unit, color }) => {
-                const over = value > meta * 1.05;
+          {totales.calorias > 0 && (
+            <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+              {[["P", pctMacros.p, "#81C784", Math.round(dist.p * 100)], ["C", pctMacros.c, "#64B5F6", Math.round(dist.c * 100)], ["L", pctMacros.l, "#FFB74D", Math.round(dist.l * 100)]].map(([label, actual, color, meta]) => {
+                const diff = actual - meta; const ok = Math.abs(diff) < 8;
                 return (
-                  <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "12px 8px", textAlign: "center", border: `1.5px solid ${over ? "#ef5350" : "rgba(255,255,255,0.07)"}` }}>
-                    <div style={{ fontSize: 9, color: "#666", marginBottom: 5, textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: over ? "#ef5350" : color }}>{value}</div>
-                    <div style={{ fontSize: 9, color: "#555" }}>/ {meta}{unit}</div>
-                    <div style={{ marginTop: 6 }}><Bar value={value} max={meta} color={over ? "#ef5350" : color} /></div>
-                    {over && <div style={{ fontSize: 9, color: "#ef5350", marginTop: 2 }}>↑ exceso</div>}
+                  <div key={label} style={{ flex: 1, padding: "6px 8px", background: ok ? `${color}12` : "rgba(239,83,80,0.08)", border: `1px solid ${ok ? color + "33" : "rgba(239,83,80,0.25)"}`, borderRadius: 8, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: ok ? color : "#ef9a9a" }}>{Math.round(actual)}% <span style={{ fontSize: 9, color: "#555" }}>/{meta}%</span></div>
+                    <div style={{ fontSize: 9, color: "#555" }}>{label} {ok ? "✓" : diff > 0 ? "↑" : "↓"}</div>
                   </div>
                 );
               })}
             </div>
+          )}
+        </div>
 
-            {Object.keys(planComidas).some(k => planComidas[k]?.length > 0) && (
-              <div style={{ background: "rgba(100,181,246,0.06)", border: "1.5px solid rgba(100,181,246,0.18)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: "#64B5F6", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>🍽️ Tu distribución de comidas</div>
-                {nombreComidas.map(nombre => {
-                  const foods = planComidas[nombre] || []; if (!foods.length) return null;
-                  const calComida = foods.reduce((acc, f) => { const factor = (porciones[f.id] ?? f.porcion) / f.porcion; return acc + f.calorias * factor; }, 0);
-                  return (
-                    <div key={nombre} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><span style={{ fontSize: 12, fontWeight: 600, color: "#64B5F6" }}>{nombre}</span><span style={{ fontSize: 11, color: "#555" }}>{calComida.toFixed(0)} kcal</span></div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{foods.map(f => <span key={f.id} style={{ fontSize: 10, padding: "2px 8px", background: "rgba(100,181,246,0.1)", borderRadius: 99, color: "#aaa" }}>{f.nombre}</span>)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {proteinaMeta && (
-              <div style={{ padding: "13px 16px", background: "rgba(129,199,132,0.07)", border: "1.5px solid rgba(129,199,132,0.18)", borderRadius: 14, marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: "#81C784", fontWeight: 600, marginBottom: 6 }}>🥩 Meta de proteína diaria</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}><span style={{ fontSize: 32, fontWeight: 700, fontFamily: "'Playfair Display', serif", color: "#81C784" }}>{proteinaMeta}g</span><span style={{ fontSize: 12, color: "#555" }}>{PROTEINA_G_KG[objetivo]} g/kg · {perfil.peso} kg peso</span></div>
-                {pctGrasa && masaMagra && <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>Masa magra: {masaMagra.toFixed(1)} kg · % Grasa: {pctGrasa.toFixed(1)}%</div>}
-                <div style={{ marginTop: 8 }}><Bar value={totales.proteinas} max={proteinaMeta} color="#81C784" /></div>
-                <div style={{ fontSize: 11, color: totales.proteinas >= proteinaMeta ? "#81C784" : "#888", marginTop: 4 }}>{totales.proteinas >= proteinaMeta ? "✓ Meta cubierta" : `Llevas ${Math.round(totales.proteinas)}g — faltan ${Math.round(proteinaMeta - totales.proteinas)}g`}</div>
-              </div>
-            )}
-
-            {totales.costo > 0 && (
-              <div style={{ padding: "14px 16px", background: "rgba(76,175,80,0.08)", border: "1.5px solid rgba(76,175,80,0.2)", borderRadius: 14, marginBottom: 18 }}>
-                <div style={{ fontSize: 12, color: "#4CAF50", fontWeight: 600, marginBottom: 8 }}>💰 Costo estimado de tu plan</div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  {[["$" + totales.costo.toFixed(0), "por día", "#4CAF50"], ["$" + (totales.costo * 7).toFixed(0), "por semana", "#81C784"], ["$" + (totales.costo * 30).toFixed(0), "por mes", "#aaa"]].map(([val, sub, color]) => (
-                    <div key={sub} style={{ textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'Playfair Display', serif", color }}>{val}</div><div style={{ fontSize: 10, color: "#555" }}>{sub}</div></div>
-                  ))}
+        {/* Búsqueda FatSecret */}
+        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 16px", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>🔍 Buscar alimento</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="text" placeholder="Ej: pollo, avena, manzana..." value={busqueda} onChange={e => setBusqueda(e.target.value)} onKeyDown={e => e.key === "Enter" && buscarAlimento(busqueda)} style={{ flex: 1, padding: "10px 12px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 14, outline: "none" }} />
+            <button onClick={() => buscarAlimento(busqueda)} style={{ padding: "10px 16px", background: "#FFB74D", border: "none", borderRadius: 10, color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>{buscando ? "..." : "Buscar"}</button>
+          </div>
+          {errorBusqueda && <div style={{ fontSize: 12, color: "#ef9a9a", marginTop: 8 }}>{errorBusqueda}</div>}
+          {resultadosBusqueda.length > 0 && (
+            <div style={{ marginTop: 10, maxHeight: 240, overflowY: "auto" }}>
+              {resultadosBusqueda.map(f => (
+                <div key={f.id} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 10, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{f.nombre}</div>
+                    <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{f.porcion}g · {f.proteinas.toFixed(1)}P · {f.carbos.toFixed(1)}C · {f.lipidos.toFixed(1)}L · {f.calorias}kcal</div>
+                  </div>
+                  <button onClick={() => { toggle(f.cat, f); setResultadosBusqueda([]); setBusqueda(""); }} style={{ padding: "5px 12px", background: "#FFB74D", border: "none", borderRadius: 8, color: "#000", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Agregar</button>
                 </div>
-                <div style={{ marginTop: 10, fontSize: 11, color: "#555", textAlign: "center" }}>Un plan de nutriólogo cuesta $1,500–$3,000/mes solo en consultas.</div>
-              </div>
-            )}
-
-            {[["proteinas", "🥩"], ["carbohidratos", "🌾"], ["lipidos", "🥑"]].map(([cat, icon]) => seleccion[cat].length > 0 && (
-              <div key={cat} style={{ marginBottom: 13 }}>
-                <div style={{ fontSize: 11, color: "#888", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>{icon} {cat}</div>
-                {seleccion[cat].map(f => {
-                  const porcionReal = porciones[f.id] ?? f.porcion; const factor = porcionReal / f.porcion;
-                  return (
-                    <div key={f.id} style={{ padding: "10px 13px", background: "rgba(255,255,255,0.04)", borderRadius: 10, marginBottom: 5 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>{f.nombre}</span>
-                        <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#FFB74D", fontWeight: 600 }}>{Math.round(f.calorias * factor)} kcal</div><div style={{ fontSize: 10, color: "#4CAF50" }}>${((porcionReal / 1000) * (precios[f.id] ?? f.precio_kg)).toFixed(1)}</div></div>
-                      </div>
-                      <div style={{ fontSize: 11, color: "#666", marginTop: 3 }}>
-                        <span style={{ color: porciones[f.id] ? "#FFB74D" : "#555" }}>{porcionReal}g</span>{porciones[f.id] && <span style={{ color: "#444" }}> (base: {f.porcion}g)</span>}
-                        &nbsp;·&nbsp;<span style={{ color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}P</span>&nbsp;·&nbsp;<span style={{ color: "#64B5F6" }}>{(f.carbos * factor).toFixed(1)}C</span>&nbsp;·&nbsp;<span style={{ color: "#FFB74D" }}>{(f.lipidos * factor).toFixed(1)}L</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
-            {seleccion.proteinas.length === 0 && seleccion.carbohidratos.length === 0 && seleccion.lipidos.length === 0 && (
-              <div style={{ textAlign: "center", color: "#555", padding: "32px 0" }}>No seleccionaste alimentos aún.<br /><button onClick={() => setStep(3)} style={{ marginTop: 12, background: "#FFB74D", border: "none", borderRadius: 10, padding: "10px 20px", color: "#000", cursor: "pointer", fontWeight: 600 }}>Elegir alimentos</button></div>
-            )}
-
-            {daysLeft <= 5 && (
-              <div style={{ marginTop: 18, padding: "16px", background: "rgba(255,183,77,0.08)", border: "1.5px solid rgba(255,183,77,0.22)", borderRadius: 16, textAlign: "center" }}>
-                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, marginBottom: 5 }}>¿Te está funcionando?</div>
-                <div style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Quedan {daysLeft} días. Continúa por solo $99 MXN/mes.</div>
-                <button style={{ background: "#FFB74D", border: "none", borderRadius: 12, padding: "11px 26px", color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Suscribirme ahora</button>
-              </div>
-            )}
-
-            <div style={{ marginTop: 20, marginBottom: 4 }}>
-              <div style={{ fontSize: 12, letterSpacing: 2, color: "#F48FB1", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>🌿 Complementos del día</div>
-              <div style={{ fontSize: 11, color: "#555", marginBottom: 14, lineHeight: 1.6 }}>Infusiones recomendadas según tu objetivo y condición. Respaldo científico incluido. <span style={{ color: "#CE93D8" }}>💎 Tier Pro</span></div>
-              {tieneAcceso("infusiones") ? (
-                infusionesRecomendadas.map(inf => <InfusionCard key={inf.label} inf={inf} />)
-              ) : (
-                <div onClick={() => intentarAcceder("infusiones", () => {})} style={{ padding: "20px", background: "rgba(206,147,216,0.06)", border: "1.5px dashed rgba(206,147,216,0.3)", borderRadius: 14, textAlign: "center", cursor: "pointer" }}>
-                  <div style={{ fontSize: 32, marginBottom: 10 }}>🔒</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#CE93D8", marginBottom: 6 }}>Módulo de Infusiones</div>
-                  <div style={{ fontSize: 12, color: "#666", lineHeight: 1.6, marginBottom: 14 }}>{infusionesRecomendadas.length} infusiones recomendadas para tu objetivo.<br />Dosis escaladas + respaldo científico incluido.</div>
-                  <div style={{ display: "inline-block", padding: "8px 20px", background: "#CE93D8", borderRadius: 99, color: "#000", fontWeight: 700, fontSize: 13 }}>💎 Activar Pro — $149/mes</div>
-                </div>
-              )}
-              <div style={{ fontSize: 10, color: "#444", lineHeight: 1.6, marginTop: 12, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>⚠️ Estas recomendaciones son orientativas y no sustituyen consulta médica. Consulta a tu médico antes de iniciar cualquier suplementación, especialmente si tomas medicamentos.</div>
+              ))}
             </div>
+          )}
+        </div>
 
-            <button onClick={() => intentarAcceder("seguimiento", () => setScreen("seguimiento"))} style={{ width: "100%", marginTop: 16, padding: "14px", borderRadius: 14, border: "1.5px solid rgba(255,183,77,0.3)", background: "linear-gradient(135deg, rgba(255,183,77,0.15), rgba(129,199,132,0.15))", color: "#FFB74D", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-              {tieneAcceso("seguimiento") ? "📈" : "🔒"} Seguimiento semanal + recomendación IA {!tieneAcceso("seguimiento") && <span style={{ fontSize: 11, color: "#FFB74D88" }}>· Premium</span>}
-            </button>
-
-            <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-              <button onClick={() => setStep(4)} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#fff", cursor: "pointer" }}>← Comidas</button>
-              <button onClick={() => { setStep(0); setSeleccion({ proteinas: [], carbohidratos: [], lipidos: [] }); setSomatotipo(null); setPlanComidas({}); setProtocolo("estandar"); }} style={{ flex: 2, padding: "13px", borderRadius: 14, border: "none", background: "#81C784", color: "#000", fontWeight: 700, cursor: "pointer" }}>Nuevo plan ↺</button>
+        {/* Selección de alimentos por categoría */}
+        {Object.entries(foodDbFiltrado).map(([cat, foods]) => {
+          const meta = catLabels[cat];
+          const disponibles = foods.filter(f => !f.bloqueado);
+          const bloqueados  = foods.filter(f => f.bloqueado);
+          return (
+            <div key={cat} style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 16 }}>{meta.icon}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, letterSpacing: 1, textTransform: "uppercase" }}>{meta.label}</span>
+                <span style={{ fontSize: 11, color: "#555" }}>· {seleccion[cat].length} seleccionados</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {disponibles.map(food => (
+                  <FoodCard key={food.id} food={food} cat={cat} selected={!!seleccion[cat].find(f => f.id === food.id)} porciones={porciones} setPorciones={setPorciones} precios={precios} setPrecios={setPrecios} toggle={toggle} />
+                ))}
+                {bloqueados.length > 0 && (
+                  <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 5 }}>
+                    {bloqueados.map(food => <BlockedFoodCard key={food.id} food={food} />)}
+                  </div>
+                )}
+              </div>
             </div>
+          );
+        })}
+
+        {/* Infusiones */}
+        {infusionesRecomendadas.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#CE93D8", letterSpacing: 1, textTransform: "uppercase" }}>🌿 Infusiones recomendadas</div>
+              {!tieneAcceso("infusiones") && <span style={{ fontSize: 10, color: "#CE93D8", background: "rgba(206,147,216,0.15)", borderRadius: 99, padding: "2px 8px" }}>💎 Pro</span>}
+            </div>
+            {tieneAcceso("infusiones") ? (
+              infusionesRecomendadas.map(inf => <InfusionCard key={inf.label} inf={inf} />)
+            ) : (
+              <button onClick={() => intentarAcceder("infusiones", () => {})} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "1.5px solid rgba(206,147,216,0.3)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", textAlign: "left" }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>💎 Módulo Pro: {infusionesRecomendadas.length} infusiones para tu objetivo</div>
+                <div style={{ fontSize: 11, color: "#666" }}>{infusionesRecomendadas.map(i => i.label).join(" · ")}</div>
+                <div style={{ fontSize: 11, color: "#CE93D8", marginTop: 6 }}>Toca para desbloquear →</div>
+              </button>
+            )}
           </div>
         )}
+
+        {/* Botones inferiores */}
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <button onClick={() => intentarAcceder("seguimiento", () => setScreen("seguimiento"))} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "#888", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📊 Seguimiento</button>
+          <button onClick={() => { setGuiaActiva(protocolo); setGuiaOrigen("app"); setScreen("guia"); }} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,183,77,0.2)", background: "rgba(255,183,77,0.06)", color: "#FFB74D", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📖 Guía {PROTOCOLOS[protocolo]?.icon}</button>
+        </div>
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
