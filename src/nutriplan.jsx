@@ -562,6 +562,9 @@ export default function NutriPlan() {
   const [seleccion, setSeleccion]   = useState({ proteinas: [], carbohidratos: [], lipidos: [] });
   const [precios, setPrecios]       = useState({});
   const [porciones, setPorciones]   = useState({});
+  const [foodDbExtra, setFoodDbExtra] = useState({ proteinas: [], carbohidratos: [], lipidos: [] });
+  const [distComidas, setDistComidas] = useState(null);
+  const [editandoDist, setEditandoDist] = useState(false);
 
   const daysLeft = trialStart ? getDaysLeft(trialStart) : 14;
   const trialPct = trialStart ? Math.min(((14 - daysLeft) / 14) * 100, 100) : 0;
@@ -684,13 +687,18 @@ export default function NutriPlan() {
     const excluirRest   = RESTRICCIONES_FILTRO[restriccion] || [];
     const excluirKeto   = PROTOCOLOS[protocolo]?.ketoExcluye || [];
     const prepPermitido = tiempoPrep === "rapido" ? ["rapido"] : tiempoPrep === "moderado" ? ["rapido", "moderado"] : ["rapido", "moderado", "elaborado"];
-    const enriquecer = arr => arr.map(f => {
-      const bK = excluirKeto.includes(f.id); const bR = excluirRest.includes(f.id); const bP = !prepPermitido.includes(f.prep);
-      return { ...f, bloqueado: bK || bR || bP, razonBloqueo: bK ? "No compatible con Keto — alto en carbos" : bR ? "Excluido por tu restricción alimentaria" : bP ? "Tiempo de preparación mayor a tu disponibilidad" : null, tipoBloqeo: bK ? "keto" : bR ? "restriccion" : bP ? "prep" : null };
+    const enriquecer = (arr, esExtra = false) => arr.map(f => {
+      const bK = !esExtra && excluirKeto.includes(f.id);
+      const bR = !esExtra && excluirRest.includes(f.id);
+      const bP = !esExtra && !!f.prep && !prepPermitido.includes(f.prep);
+      return { ...f, esExtra, bloqueado: bK || bR || bP, razonBloqueo: bK ? "No compatible con Keto — alto en carbos" : bR ? "Excluido por tu restricción alimentaria" : bP ? "Tiempo de preparación mayor a tu disponibilidad" : null, tipoBloqeo: bK ? "keto" : bR ? "restriccion" : bP ? "prep" : null };
     });
-    return { proteinas: enriquecer(FOOD_DB.proteinas), carbohidratos: enriquecer(FOOD_DB.carbohidratos), lipidos: enriquecer(FOOD_DB.lipidos) };
-  }, [restriccion, protocolo, tiempoPrep]);
-
+    return {
+      proteinas:     [...enriquecer(FOOD_DB.proteinas), ...enriquecer(foodDbExtra.proteinas, true)],
+      carbohidratos: [...enriquecer(FOOD_DB.carbohidratos), ...enriquecer(foodDbExtra.carbohidratos, true)],
+      lipidos:       [...enriquecer(FOOD_DB.lipidos), ...enriquecer(foodDbExtra.lipidos, true)],
+    };
+  }, [restriccion, protocolo, tiempoPrep, foodDbExtra]);
   const nombreComidas = useMemo(() => {
     if (protocolo === "ayuno16" || protocolo === "ketoAyuno") return numComidas === 2 ? ["Primera comida (12:00 pm)", "Última comida (7:00 pm)"] : ["Primera comida (12:00 pm)", "Comida (3:00 pm)", "Última comida (7:00 pm)"];
     if (protocolo === "ayuno18") return numComidas === 2 ? ["Primera comida (1:00 pm)", "Última comida (6:00 pm)"] : ["Primera comida (1:00 pm)", "Merienda (4:00 pm)", "Última comida (6:30 pm)"];
@@ -1314,10 +1322,20 @@ export default function NutriPlan() {
                     <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{f.porcion}g · {f.proteinas.toFixed(1)}P · {f.carbos.toFixed(1)}C · {f.lipidos.toFixed(1)}L · {f.calorias}kcal</div>
                   </div>
                   <button onClick={() => {
-                    // Determinar categoría si la API no la devuelve
                     const cat = f.cat || (f.proteinas >= f.carbos && f.proteinas >= f.lipidos ? "proteinas" : f.carbos >= f.lipidos ? "carbohidratos" : "lipidos");
-                    const foodConCat = { ...f, cat };
-                    toggle(cat, foodConCat);
+                    const foodNuevo = { ...f, cat, prep: f.prep || "rapido", precio_kg: f.precio_kg || 0, esExtra: true };
+                    // Agregar a foodDbExtra para que aparezca como FoodCard editable
+                    setFoodDbExtra(prev => {
+                      const yaExiste = prev[cat].find(x => x.id === foodNuevo.id);
+                      if (yaExiste) return prev;
+                      return { ...prev, [cat]: [...prev[cat], foodNuevo] };
+                    });
+                    // Seleccionarlo automáticamente
+                    setSeleccion(prev => {
+                      const yaSeleccionado = prev[cat].find(x => x.id === foodNuevo.id);
+                      if (yaSeleccionado) return prev;
+                      return { ...prev, [cat]: [...prev[cat], foodNuevo] };
+                    });
                     setResultadosBusqueda([]); setBusqueda("");
                   }} style={{ padding: "5px 12px", background: "#FFB74D", border: "none", borderRadius: 8, color: "#000", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Agregar</button>
                 </div>
@@ -1352,44 +1370,99 @@ export default function NutriPlan() {
           );
         })}
 
-        {/* Distribución por comidas */}
-        {totales.calorias > 0 && (
-          <div style={{ marginBottom: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 16px" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#64B5F6", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>🍽️ Distribución por comidas</div>
-            {["ayuno16","ayuno18","ketoAyuno"].includes(protocolo) && (
-              <div style={{ padding: "8px 12px", background: "rgba(100,181,246,0.08)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#64B5F6", lineHeight: 1.6 }}>
-                  ⏱️ <b>Ventana de alimentación activa.</b> Las calorías y macros totales de tu plan se distribuyen <b>solo dentro del horario</b> indicado — no en 24 horas. Fuera de la ventana: agua, café o té negro sin azúcar.
+        {/* Distribución por comidas editable */}
+        {totales.calorias > 0 && (() => {
+          // Calcular distribución activa: personalizada o igualitaria
+          const distActiva = (() => {
+            if (distComidas) {
+              const suma = Object.values(distComidas).reduce((a, b) => a + b, 0);
+              if (suma > 0) return distComidas;
+            }
+            const factor = 1 / nombreComidas.length;
+            return Object.fromEntries(nombreComidas.map(n => [n, factor]));
+          })();
+
+          const totalPct = Object.values(distActiva).reduce((a, b) => a + b, 0);
+
+          const actualizarDist = (nombre, nuevoPct) => {
+            const pctNum = Math.max(5, Math.min(70, nuevoPct));
+            setDistComidas(prev => {
+              const base = prev || Object.fromEntries(nombreComidas.map(n => [n, 1 / nombreComidas.length]));
+              return { ...base, [nombre]: pctNum / 100 };
+            });
+          };
+
+          const resetDist = () => setDistComidas(null);
+
+          return (
+            <div style={{ marginBottom: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#64B5F6", letterSpacing: 1, textTransform: "uppercase" }}>🍽️ Distribución por comidas</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {distComidas && (
+                    <button onClick={resetDist} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, border: "1px solid #555", background: "transparent", color: "#666", cursor: "pointer" }}>↺ Auto</button>
+                  )}
+                  <button onClick={() => setEditandoDist(e => !e)} style={{ fontSize: 10, padding: "3px 10px", borderRadius: 6, border: "none", background: editandoDist ? "#64B5F6" : "rgba(100,181,246,0.15)", color: editandoDist ? "#000" : "#64B5F6", cursor: "pointer", fontWeight: 700 }}>{editandoDist ? "✓ Listo" : "✏️ Editar"}</button>
                 </div>
               </div>
-            )}
-            {nombreComidas.map((comida, i) => {
-              const factor = 1 / nombreComidas.length;
-              const calComida = Math.round(totales.calorias * factor);
-              const proComida = (totales.proteinas * factor).toFixed(1);
-              const carComida = (totales.carbos * factor).toFixed(1);
-              const lipComida = (totales.lipidos * factor).toFixed(1);
-              return (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < nombreComidas.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{comida}</div>
-                    <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
-                      <span style={{ color: "#81C784" }}>{proComida}Pro</span> · <span style={{ color: "#64B5F6" }}>{carComida}Car</span> · <span style={{ color: "#FFB74D" }}>{lipComida}Lip</span>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#FFB74D" }}>{calComida}</div>
-                    <div style={{ fontSize: 10, color: "#555" }}>kcal</div>
-                  </div>
+
+              {["ayuno16","ayuno18","ketoAyuno"].includes(protocolo) && (
+                <div style={{ padding: "8px 12px", background: "rgba(100,181,246,0.08)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 10, marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: "#64B5F6", lineHeight: 1.6 }}>⏱️ <b>Ventana de alimentación activa.</b> Macros distribuidos solo dentro del horario. Fuera: agua, café o té negro.</div>
                 </div>
-              );
-            })}
-            <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#888" }}>Total del día</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>{Math.round(totales.calorias)} kcal · ${totales.costo.toFixed(0)} MXN</span>
+              )}
+
+              {Math.abs(totalPct - 1) > 0.02 && (
+                <div style={{ padding: "6px 10px", background: "rgba(239,83,80,0.08)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 8, marginBottom: 10, fontSize: 11, color: "#ef9a9a" }}>
+                  ⚠️ La suma es {Math.round(totalPct * 100)}% — ajusta hasta llegar a 100%
+                </div>
+              )}
+
+              {nombreComidas.map((comida, i) => {
+                const pct   = distActiva[comida] ?? (1 / nombreComidas.length);
+                const cal   = Math.round(totales.calorias * pct);
+                const pro   = (totales.proteinas * pct).toFixed(1);
+                const car   = (totales.carbos * pct).toFixed(1);
+                const lip   = (totales.lipidos * pct).toFixed(1);
+                return (
+                  <div key={i} style={{ paddingBottom: 10, marginBottom: 10, borderBottom: i < nombreComidas.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: editandoDist ? 8 : 2 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{comida}</div>
+                        <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
+                          <span style={{ color: "#81C784" }}>{pro}Pro</span> · <span style={{ color: "#64B5F6" }}>{car}Car</span> · <span style={{ color: "#FFB74D" }}>{lip}Lip</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#FFB74D" }}>{cal}</div>
+                        <div style={{ fontSize: 10, color: "#64B5F6" }}>{Math.round(pct * 100)}%</div>
+                      </div>
+                    </div>
+                    {editandoDist && (
+                      <div>
+                        <input
+                          type="range"
+                          min={5} max={70} step={1}
+                          value={Math.round(pct * 100)}
+                          onChange={e => actualizarDist(comida, +e.target.value)}
+                          style={{ width: "100%", accentColor: "#64B5F6", cursor: "pointer" }}
+                        />
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#444", marginTop: 1 }}>
+                          <span>5%</span><span style={{ color: "#64B5F6", fontWeight: 700 }}>{Math.round(pct * 100)}%</span><span>70%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div style={{ marginTop: 4, padding: "8px 10px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: "#888" }}>Total del día</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>{Math.round(totales.calorias)} kcal · ${totales.costo.toFixed(0)} MXN</span>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Infusiones */}
         {infusionesRecomendadas.length > 0 && (
