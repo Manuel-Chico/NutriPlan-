@@ -260,9 +260,13 @@ function costoPorcion(food, precios) {
 // COMPONENTES STANDALONE
 // ═══════════════════════════════════════════════════════════════════════
 
-function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, setProtocolo, setScreen }) {
+function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, objetivo, setProtocolo, setScreen }) {
   const [seccion, setSeccion] = useState("que");
-  const g    = GUIAS_DIETA[guiaActiva];
+  // Para protocolo estándar, mostrar la guía correcta según el objetivo
+  const guiaKey = guiaActiva === "estandar"
+    ? (objetivo === "mantener" ? "mantener_guia" : objetivo === "masa" ? "masa" : objetivo === "bajar" ? "estandar" : "estandar")
+    : guiaActiva;
+  const g    = GUIAS_DIETA[guiaKey];
   const soma = SOMATOTIPOS.find(s => s.id === somatotipo);
   if (!g) return null;
   const secciones        = [{ id: "que", label: "¿Qué es?" }, { id: "como", label: "Timeline" }, { id: "flu", label: "Síntomas" }, { id: "tabla", label: "Por cuerpo" }, { id: "alimentos", label: "Alimentos" }];
@@ -392,7 +396,7 @@ function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, setProtocolo, setScreen
           </div>
         )}
         <button onClick={() => { if (guiaOrigen === "protocolo") { setProtocolo(guiaActiva); setScreen("protocolo"); } else setScreen("app"); }} style={{ width: "100%", marginTop: 24, padding: "15px", borderRadius: 14, border: "none", background: g.color, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-          {guiaOrigen === "protocolo" ? `Elegir ${g.titulo} →` : "Entendido →"}
+          {guiaOrigen === "protocolo" ? `Elegir ${GUIAS_DIETA[guiaActiva]?.titulo || g.titulo} →` : "Entendido →"}
         </button>
         <button onClick={() => setScreen(guiaOrigen)} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>
           ← {guiaOrigen === "app" ? "Regresar al plan" : "Ver otras opciones"}
@@ -800,7 +804,7 @@ export default function NutriPlan() {
     </div>
   );
 
-  if (screen === "guia" && guiaActiva) return <GuiaDieta guiaActiva={guiaActiva} guiaOrigen={guiaOrigen} somatotipo={somatotipo} setProtocolo={setProtocolo} setScreen={setScreen} />;
+  if (screen === "guia" && guiaActiva) return <GuiaDieta guiaActiva={guiaActiva} guiaOrigen={guiaOrigen} somatotipo={somatotipo} objetivo={objetivo} setProtocolo={setProtocolo} setScreen={setScreen} />;
 
   // ── UPGRADE ───────────────────────────────────────────────────────────
   if (screen === "upgrade") {
@@ -872,27 +876,76 @@ export default function NutriPlan() {
           </div>
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px 18px", marginBottom: 20 }}>
             <div style={{ fontSize: 12, color: "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>📝 Registro semanal #{registros.length + 1}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-              {[{ key: "peso", label: "Peso (kg)", placeholder: "75.5" }, { key: "cintura", label: "Cintura (cm)", placeholder: "85" }, { key: "cuello", label: "Cuello (cm)", placeholder: "38" }].map(({ key, label, placeholder }) => (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[{ key: "peso", label: "Peso (kg)", placeholder: "75.5" }, { key: "cintura", label: "Cintura (cm)", placeholder: "85" }].map(({ key, label, placeholder }) => (
                 <div key={key}>
                   <label style={{ fontSize: 9, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label>
                   <input type="number" placeholder={placeholder} value={nuevoRegistro[key]} onChange={e => setNuevoRegistro(r => ({ ...r, [key]: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: "10px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                 </div>
               ))}
             </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[{ key: "cuello", label: "Cuello (cm)", placeholder: "38" }, { key: "talla", label: "Estatura (cm)", placeholder: perfil.talla || "175" }].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: 9, color: "#888", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label>
+                  <input type="number" placeholder={String(placeholder)} value={nuevoRegistro[key] ?? ""} onChange={e => setNuevoRegistro(r => ({ ...r, [key]: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: "10px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                </div>
+              ))}
+            </div>
             <button onClick={guardarRegistro} disabled={!nuevoRegistro.peso || !nuevoRegistro.cintura} style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: nuevoRegistro.peso && nuevoRegistro.cintura ? "#FFB74D" : "#222", color: nuevoRegistro.peso && nuevoRegistro.cintura ? "#000" : "#555", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Guardar y analizar con IA →</button>
           </div>
-          {registros.length > 0 && (
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 18px", marginBottom: 20 }}>
-              <div style={{ fontSize: 12, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 16 }}>📈 Progreso de peso</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 80, marginBottom: 8 }}>
-                {registros.map((r, i) => {
-                  const altura = Math.max(12, Math.round(((+r.peso - minPeso) / rangoPeso) * 60 + 12)); const esUltimo = i === registros.length - 1;
-                  return (<div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ fontSize: 9, color: esUltimo ? "#FFB74D" : "#555" }}>{r.peso}</div><div style={{ width: "100%", height: altura, background: esUltimo ? "#FFB74D" : "rgba(255,183,77,0.25)", borderRadius: "4px 4px 0 0" }} /><div style={{ fontSize: 9, color: "#444" }}>S{r.semana}</div></div>);
-                })}
+          {registros.length > 0 && (() => {
+            const W = 320; const H = 110; const pad = 28;
+            const pesos = registros.map(r => +r.peso);
+            const cints = registros.map(r => +r.cintura);
+            const minP = Math.min(...pesos) - 1; const maxP = Math.max(...pesos) + 1;
+            const minC = Math.min(...cints) - 2; const maxC = Math.max(...cints) + 2;
+            const xOf = i => pad + (i / Math.max(registros.length - 1, 1)) * (W - pad * 2);
+            const yOfP = v => H - pad - ((v - minP) / (maxP - minP || 1)) * (H - pad * 2);
+            const yOfC = v => H - pad - ((v - minC) / (maxC - minC || 1)) * (H - pad * 2);
+            const pathP = registros.map((r, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOfP(+r.peso).toFixed(1)}`).join(" ");
+            const pathC = registros.map((r, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOfC(+r.cintura).toFixed(1)}`).join(" ");
+            const cambPeso = pesos.length > 1 ? (pesos[pesos.length-1] - pesos[0]).toFixed(1) : null;
+            const cambCint = cints.length > 1 ? (cints[cints.length-1] - cints[0]).toFixed(1) : null;
+            return (
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 18px", marginBottom: 20 }}>
+                <div style={{ fontSize: 12, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>📈 Progreso</div>
+                <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: "#888" }}>⚖️ Peso <span style={{ color: cambPeso && +cambPeso < 0 ? "#81C784" : "#ef9a9a", fontWeight: 700 }}>{cambPeso ? (cambPeso > 0 ? "+" : "") + cambPeso + " kg" : "—"}</span></div>
+                  <div style={{ fontSize: 11, color: "#888" }}>📏 Cintura <span style={{ color: cambCint && +cambCint < 0 ? "#81C784" : "#ef9a9a", fontWeight: 700 }}>{cambCint ? (cambCint > 0 ? "+" : "") + cambCint + " cm" : "—"}</span></div>
+                </div>
+                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", overflow: "visible" }}>
+                  {/* Grid lines */}
+                  {[0.25, 0.5, 0.75, 1].map(t => (
+                    <line key={t} x1={pad} y1={H - pad - t*(H-pad*2)} x2={W-pad} y2={H - pad - t*(H-pad*2)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                  ))}
+                  {/* Peso line */}
+                  {registros.length > 1 && <path d={pathP} fill="none" stroke="#FFB74D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+                  {/* Cintura line */}
+                  {registros.length > 1 && <path d={pathC} fill="none" stroke="#64B5F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4,3" />}
+                  {/* Dots peso */}
+                  {registros.map((r, i) => (
+                    <g key={i}>
+                      <circle cx={xOf(i)} cy={yOfP(+r.peso)} r="4" fill="#FFB74D" />
+                      <text x={xOf(i)} y={yOfP(+r.peso) - 7} textAnchor="middle" fontSize="8" fill="#FFB74D">{r.peso}</text>
+                    </g>
+                  ))}
+                  {/* Dots cintura */}
+                  {registros.map((r, i) => (
+                    <circle key={i} cx={xOf(i)} cy={yOfC(+r.cintura)} r="3" fill="#64B5F6" />
+                  ))}
+                  {/* Labels eje X */}
+                  {registros.map((r, i) => (
+                    <text key={i} x={xOf(i)} y={H - 4} textAnchor="middle" fontSize="8" fill="#555">S{r.semana}</text>
+                  ))}
+                </svg>
+                <div style={{ display: "flex", gap: 14, marginTop: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#888" }}><div style={{ width: 16, height: 2, background: "#FFB74D", borderRadius: 99 }} /> Peso (kg)</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#888" }}><div style={{ width: 16, height: 2, background: "#64B5F6", borderRadius: 99, borderTop: "2px dashed #64B5F6" }} /> Cintura (cm)</div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
           {registros.length > 0 && (
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 18px" }}>
               <div style={{ fontSize: 12, color: "#888", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>📋 Historial</div>
@@ -989,11 +1042,27 @@ export default function NutriPlan() {
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
         <div style={{ width: "100%", maxWidth: 420 }}>
           <button onClick={() => { setPreguntaActual(PREGUNTAS.length - 1); setScreen("cuestionario"); }} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 14, marginBottom: 20, padding: 0 }}>← Regresar al cuestionario</button>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${info.color}22`, border: `2px solid ${info.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto 16px" }}>{objInfo?.icon}</div>
             <div style={{ fontSize: 11, letterSpacing: 3, color: info.color, textTransform: "uppercase", marginBottom: 8 }}>Diagnóstico completo</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, margin: "0 0 10px" }}>{info.titulo}</h2>
             <p style={{ color: "#888", fontSize: 14, lineHeight: 1.6, margin: 0 }}>{info.desc}</p>
+          </div>
+          {/* Selector manual de objetivo */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>¿No es tu objetivo? Cámbialo:</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+              {OBJETIVOS.map(o => (
+                <button key={o.id} onClick={() => setObjetivo(o.id)} style={{
+                  padding: "6px 14px", borderRadius: 99, fontSize: 12, cursor: "pointer", border: "none", fontWeight: objetivo === o.id ? 700 : 400,
+                  background: objetivo === o.id ? info.color : "rgba(255,255,255,0.07)",
+                  color: objetivo === o.id ? "#000" : "#888",
+                  transition: "all 0.2s",
+                }}>
+                  {o.icon} {o.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: info.color, letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Distribución de macros base</div>
@@ -1150,46 +1219,114 @@ export default function NutriPlan() {
             </table>
           </div>
 
-          {/* Alimentos seleccionados */}
-          {totalAlimentos.length > 0 && (
-            <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: "#CE93D8", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>🍽️ Alimentos del plan</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    {["Alimento", "Porción", "Pro", "Car", "Lip", "kcal", "Costo"].map(h => (
-                      <td key={h} style={{ padding: "5px 3px", fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1 }}>{h}</td>
+          {/* Alimentos seleccionados — tabla interactiva con sliders */}
+          {totalAlimentos.length > 0 && (() => {
+            const metaPro  = Math.round(calMeta * dist.p / 4);
+            const metaCar  = Math.round(calMeta * dist.c / 4);
+            const metaLip  = Math.round(calMeta * dist.l / 9);
+            const metaCal  = calMeta;
+            const diffPro  = totales.proteinas  - metaPro;
+            const diffCar  = totales.carbos     - metaCar;
+            const diffLip  = totales.lipidos    - metaLip;
+            const diffCal  = totales.calorias   - metaCal;
+            const okPro    = Math.abs(diffPro / metaPro)  < 0.08;
+            const okCar    = Math.abs(diffCar / metaCar)  < 0.08;
+            const okLip    = Math.abs(diffLip / metaLip)  < 0.08;
+            const okCal    = Math.abs(diffCal / metaCal)  < 0.05;
+            const colPro   = okPro ? "#81C784" : diffPro > 0 ? "#ef5350" : "#FFB74D";
+            const colCar   = okCar ? "#64B5F6" : diffCar > 0 ? "#ef5350" : "#FFB74D";
+            const colLip   = okLip ? "#FFB74D" : diffLip > 0 ? "#ef5350" : "#64B5F6";
+            const colCal   = okCal ? "#81C784" : diffCal > 0 ? "#ef5350" : "#FFB74D";
+            return (
+              <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: "#CE93D8", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600 }}>🍽️ Alimentos del plan</div>
+                  <div style={{ fontSize: 10, color: "#555" }}>Ajusta las porciones →</div>
+                </div>
+
+                {/* Barra de progreso calórico */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: "#888" }}>Total calorías</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: colCal }}>{Math.round(totales.calorias)} <span style={{ fontSize: 10, color: "#555", fontWeight: 400 }}>/ {metaCal} kcal</span></span>
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 6, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min((totales.calorias / metaCal) * 100, 100)}%`, height: "100%", background: colCal, borderRadius: 99, transition: "width 0.3s ease" }} />
+                  </div>
+                </div>
+
+                {/* Tabla por alimento con slider */}
+                {totalAlimentos.map((f, i) => {
+                  const porcionActual = porciones[f.id] ?? f.porcion;
+                  const factor        = porcionActual / f.porcion;
+                  const costo         = costoPorcion(f, precios) * factor;
+                  const minP = Math.round(f.porcion * 0.25);
+                  const maxP = Math.round(f.porcion * 3);
+                  return (
+                    <div key={f.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: i < totalAlimentos.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#ddd" }}>{f.nombre}</span>
+                        <span style={{ fontSize: 12, color: "#4CAF50" }}>${costo.toFixed(1)}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#666", marginBottom: 6 }}>
+                        <span style={{ color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}P</span>
+                        {" · "}
+                        <span style={{ color: "#64B5F6" }}>{(f.carbos * factor).toFixed(1)}C</span>
+                        {" · "}
+                        <span style={{ color: "#FFB74D" }}>{(f.lipidos * factor).toFixed(1)}L</span>
+                        {" · "}
+                        <span style={{ color: "#ddd", fontWeight: 700 }}>{Math.round(f.calorias * factor)} kcal</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          type="range"
+                          min={minP}
+                          max={maxP}
+                          step={5}
+                          value={porcionActual}
+                          onChange={e => setPorciones(p => ({ ...p, [f.id]: +e.target.value }))}
+                          style={{ flex: 1, accentColor: "#CE93D8", cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 12, color: "#CE93D8", fontWeight: 700, minWidth: 44, textAlign: "right" }}>{porcionActual}g</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#333", marginTop: 1 }}>
+                        <span>{minP}g</span><span>{maxP}g</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Fila de totales con color dinámico */}
+                <div style={{ borderTop: "1.5px solid rgba(255,255,255,0.1)", paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: 10, color: "#555", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Totales vs meta</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                    {[
+                      ["🥩 Pro", totales.proteinas, metaPro, colPro, "g", diffPro],
+                      ["🌾 Car", totales.carbos,    metaCar, colCar, "g", diffCar],
+                      ["🥑 Lip", totales.lipidos,   metaLip, colLip, "g", diffLip],
+                    ].map(([label, actual, meta, col, unit, diff]) => (
+                      <div key={label} style={{ padding: "8px 10px", background: `${col}12`, border: `1px solid ${col}33`, borderRadius: 10, textAlign: "center" }}>
+                        <div style={{ fontSize: 9, color: "#555", marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: col }}>{actual.toFixed(0)}{unit}</div>
+                        <div style={{ fontSize: 9, color: "#444" }}>/{meta}{unit} {Math.abs(diff) < 1 ? "✓" : diff > 0 ? `+${diff.toFixed(0)}` : diff.toFixed(0)}</div>
+                      </div>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {totalAlimentos.map((f, i) => {
-                    const factor = (porciones[f.id] ?? f.porcion) / f.porcion;
-                    return (
-                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "7px 3px", color: "#ddd", fontWeight: 600 }}>{f.nombre}</td>
-                        <td style={{ padding: "7px 3px", color: "#666" }}>{porciones[f.id] ?? f.porcion}g</td>
-                        <td style={{ padding: "7px 3px", color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}</td>
-                        <td style={{ padding: "7px 3px", color: "#64B5F6" }}>{(f.carbos * factor).toFixed(1)}</td>
-                        <td style={{ padding: "7px 3px", color: "#FFB74D" }}>{(f.lipidos * factor).toFixed(1)}</td>
-                        <td style={{ padding: "7px 3px", color: "#ddd" }}>{Math.round(f.calorias * factor)}</td>
-                        <td style={{ padding: "7px 3px", color: "#4CAF50" }}>${costoPorcion(f, precios).toFixed(1)}</td>
-                      </tr>
-                    );
-                  })}
-                  <tr style={{ borderTop: "1.5px solid rgba(255,255,255,0.1)" }}>
-                    <td style={{ padding: "8px 3px", color: "#FFB74D", fontWeight: 700 }}>Total</td>
-                    <td></td>
-                    <td style={{ color: "#81C784", fontWeight: 700 }}>{totales.proteinas.toFixed(1)}</td>
-                    <td style={{ color: "#64B5F6", fontWeight: 700 }}>{totales.carbos.toFixed(1)}</td>
-                    <td style={{ color: "#FFB74D", fontWeight: 700 }}>{totales.lipidos.toFixed(1)}</td>
-                    <td style={{ color: "#FFB74D", fontWeight: 700 }}>{Math.round(totales.calorias)}</td>
-                    <td style={{ color: "#4CAF50", fontWeight: 700 }}>${totales.costo.toFixed(0)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </div>
+                  <div style={{ marginTop: 8, padding: "10px 14px", background: `${colCal}10`, border: `1px solid ${colCal}33`, borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "#888" }}>Total kcal</span>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: colCal }}>{Math.round(totales.calorias)}</span>
+                      <span style={{ fontSize: 11, color: "#555" }}> / {metaCal} kcal</span>
+                      <span style={{ fontSize: 11, color: colCal, marginLeft: 6 }}>{okCal ? "✓" : diffCal > 0 ? `+${Math.round(diffCal)}` : Math.round(diffCal)}</span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 6, textAlign: "right" }}>
+                    <span style={{ fontSize: 11, color: "#4CAF50" }}>Costo total: ${totales.costo.toFixed(0)} MXN</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Horario de comidas */}
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
@@ -1219,11 +1356,31 @@ export default function NutriPlan() {
       <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
         <div style={{ width: "100%", maxWidth: 420 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-            <button onClick={() => { if (preguntaActual > 0) { setPreguntaActual(i => i - 1); } else { setScreen("register"); } }} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22, padding: 0, lineHeight: 1 }}>‹</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, color: "#555" }}><span>Pregunta {preguntaActual + 1} de {PREGUNTAS.length}</span><span>{Math.round(pct)}%</span></div>
-              <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 4 }}><div style={{ width: `${pct}%`, background: "#FFB74D", height: "100%", borderRadius: 99, transition: "width 0.4s ease" }} /></div>
+          {/* Stepper numerado */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 28 }}>
+            <button onClick={() => { if (preguntaActual > 0) { setPreguntaActual(i => i - 1); } else { setScreen("register"); } }} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22, padding: 0, lineHeight: 1, flexShrink: 0 }}>‹</button>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 4, overflowX: "auto" }}>
+              {PREGUNTAS.map((_, i) => {
+                const done    = i < preguntaActual;
+                const current = i === preguntaActual;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                    <div onClick={() => i < preguntaActual && setPreguntaActual(i)} style={{
+                      width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, cursor: i < preguntaActual ? "pointer" : "default",
+                      background: done ? "#81C784" : current ? "#FFB74D" : "rgba(255,255,255,0.08)",
+                      color: done || current ? "#000" : "#555",
+                      border: current ? "2px solid #FFB74D" : "2px solid transparent",
+                      transition: "all 0.2s",
+                    }}>
+                      {done ? "✓" : i + 1}
+                    </div>
+                    {i < PREGUNTAS.length - 1 && (
+                      <div style={{ width: 16, height: 2, background: i < preguntaActual ? "#81C784" : "rgba(255,255,255,0.08)", borderRadius: 99, transition: "background 0.3s" }} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, margin: "0 0 28px", lineHeight: 1.3 }}>{pq.texto}</h2>
@@ -1370,93 +1527,99 @@ export default function NutriPlan() {
           );
         })}
 
-        {/* Distribución por comidas editable */}
-        {totales.calorias > 0 && (() => {
-          // Calcular distribución activa: personalizada o igualitaria
-          const distActiva = (() => {
-            if (distComidas) {
-              const suma = Object.values(distComidas).reduce((a, b) => a + b, 0);
-              if (suma > 0) return distComidas;
-            }
-            const factor = 1 / nombreComidas.length;
-            return Object.fromEntries(nombreComidas.map(n => [n, factor]));
-          })();
+        {/* Distribución por comidas — asignación de alimentos */}
+        {(() => {
+          const todosAlimentos = [
+            ...seleccion.proteinas.map(f => ({ ...f, _cat: "proteinas" })),
+            ...seleccion.carbohidratos.map(f => ({ ...f, _cat: "carbohidratos" })),
+            ...seleccion.lipidos.map(f => ({ ...f, _cat: "lipidos" })),
+          ];
+          if (todosAlimentos.length === 0) return null;
 
-          const totalPct = Object.values(distActiva).reduce((a, b) => a + b, 0);
+          // planComidas: { [comidaNombre]: [foodId, ...] }
+          const asignadosIds = new Set(Object.values(planComidas).flat());
+          const sinAsignar   = todosAlimentos.filter(f => !asignadosIds.has(f.id));
 
-          const actualizarDist = (nombre, nuevoPct) => {
-            const pctNum = Math.max(5, Math.min(70, nuevoPct));
-            setDistComidas(prev => {
-              const base = prev || Object.fromEntries(nombreComidas.map(n => [n, 1 / nombreComidas.length]));
-              return { ...base, [nombre]: pctNum / 100 };
+          const toggleAsignacion = (comida, foodId) => {
+            setPlanComidas(prev => {
+              const actual = prev[comida] || [];
+              // Si ya está, lo quita; si no, lo agrega (y lo quita de otras comidas)
+              const yaEsta = actual.includes(foodId);
+              const nuevo  = {};
+              for (const k of nombreComidas) {
+                nuevo[k] = (prev[k] || []).filter(id => id !== foodId);
+              }
+              if (!yaEsta) nuevo[comida] = [...(nuevo[comida] || []), foodId];
+              return nuevo;
             });
           };
 
-          const resetDist = () => setDistComidas(null);
+          const catColor = { proteinas: "#81C784", carbohidratos: "#64B5F6", lipidos: "#FFB74D" };
 
           return (
             <div style={{ marginBottom: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#64B5F6", letterSpacing: 1, textTransform: "uppercase" }}>🍽️ Distribución por comidas</div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {distComidas && (
-                    <button onClick={resetDist} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, border: "1px solid #555", background: "transparent", color: "#666", cursor: "pointer" }}>↺ Auto</button>
-                  )}
-                  <button onClick={() => setEditandoDist(e => !e)} style={{ fontSize: 10, padding: "3px 10px", borderRadius: 6, border: "none", background: editandoDist ? "#64B5F6" : "rgba(100,181,246,0.15)", color: editandoDist ? "#000" : "#64B5F6", cursor: "pointer", fontWeight: 700 }}>{editandoDist ? "✓ Listo" : "✏️ Editar"}</button>
-                </div>
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#64B5F6", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>🍽️ ¿Qué comes en cada comida?</div>
 
               {["ayuno16","ayuno18","ketoAyuno"].includes(protocolo) && (
                 <div style={{ padding: "8px 12px", background: "rgba(100,181,246,0.08)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 10, marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: "#64B5F6", lineHeight: 1.6 }}>⏱️ <b>Ventana de alimentación activa.</b> Macros distribuidos solo dentro del horario. Fuera: agua, café o té negro.</div>
+                  <div style={{ fontSize: 11, color: "#64B5F6", lineHeight: 1.6 }}>⏱️ <b>Ventana activa.</b> Solo dentro del horario indicado. Fuera: agua, café o té negro.</div>
                 </div>
               )}
 
-              {Math.abs(totalPct - 1) > 0.02 && (
-                <div style={{ padding: "6px 10px", background: "rgba(239,83,80,0.08)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 8, marginBottom: 10, fontSize: 11, color: "#ef9a9a" }}>
-                  ⚠️ La suma es {Math.round(totalPct * 100)}% — ajusta hasta llegar a 100%
+              {sinAsignar.length > 0 && (
+                <div style={{ padding: "8px 10px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: "#FFB74D", fontWeight: 700, marginBottom: 6 }}>Sin asignar — toca una comida para colocarlos:</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {sinAsignar.map(f => (
+                      <span key={f.id} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 99, background: `${catColor[f._cat]}18`, border: `1px solid ${catColor[f._cat]}44`, color: catColor[f._cat] }}>{f.nombre}</span>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {nombreComidas.map((comida, i) => {
-                const pct   = distActiva[comida] ?? (1 / nombreComidas.length);
-                const cal   = Math.round(totales.calorias * pct);
-                const pro   = (totales.proteinas * pct).toFixed(1);
-                const car   = (totales.carbos * pct).toFixed(1);
-                const lip   = (totales.lipidos * pct).toFixed(1);
+                const idsComida  = planComidas[comida] || [];
+                const foodsComida = todosAlimentos.filter(f => idsComida.includes(f.id));
+                const calComida  = foodsComida.reduce((acc, f) => acc + (f.calorias * ((porciones[f.id] ?? f.porcion) / f.porcion)), 0);
+                const proComida  = foodsComida.reduce((acc, f) => acc + (f.proteinas * ((porciones[f.id] ?? f.porcion) / f.porcion)), 0);
+                const carComida  = foodsComida.reduce((acc, f) => acc + (f.carbos * ((porciones[f.id] ?? f.porcion) / f.porcion)), 0);
+                const lipComida  = foodsComida.reduce((acc, f) => acc + (f.lipidos * ((porciones[f.id] ?? f.porcion) / f.porcion)), 0);
+
                 return (
-                  <div key={i} style={{ paddingBottom: 10, marginBottom: 10, borderBottom: i < nombreComidas.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: editandoDist ? 8 : 2 }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{comida}</div>
-                        <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
-                          <span style={{ color: "#81C784" }}>{pro}Pro</span> · <span style={{ color: "#64B5F6" }}>{car}Car</span> · <span style={{ color: "#FFB74D" }}>{lip}Lip</span>
-                        </div>
-                      </div>
+                  <div key={i} style={{ marginBottom: 12, padding: "12px 14px", background: "rgba(0,0,0,0.2)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{comida}</div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#FFB74D" }}>{cal}</div>
-                        <div style={{ fontSize: 10, color: "#64B5F6" }}>{Math.round(pct * 100)}%</div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>{Math.round(calComida)} kcal</span>
+                        {foodsComida.length > 0 && (
+                          <div style={{ fontSize: 10, color: "#666", marginTop: 1 }}>
+                            <span style={{ color: "#81C784" }}>{proComida.toFixed(1)}Pro</span> · <span style={{ color: "#64B5F6" }}>{carComida.toFixed(1)}Car</span> · <span style={{ color: "#FFB74D" }}>{lipComida.toFixed(1)}Lip</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {editandoDist && (
-                      <div>
-                        <input
-                          type="range"
-                          min={5} max={70} step={1}
-                          value={Math.round(pct * 100)}
-                          onChange={e => actualizarDist(comida, +e.target.value)}
-                          style={{ width: "100%", accentColor: "#64B5F6", cursor: "pointer" }}
-                        />
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#444", marginTop: 1 }}>
-                          <span>5%</span><span style={{ color: "#64B5F6", fontWeight: 700 }}>{Math.round(pct * 100)}%</span><span>70%</span>
-                        </div>
-                      </div>
-                    )}
+                    {/* Chips de todos los alimentos para asignar */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                      {todosAlimentos.map(f => {
+                        const asignado = idsComida.includes(f.id);
+                        return (
+                          <button key={f.id} onClick={() => toggleAsignacion(comida, f.id)} style={{
+                            fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", border: "none",
+                            background: asignado ? catColor[f._cat] : `${catColor[f._cat]}18`,
+                            color: asignado ? "#000" : catColor[f._cat],
+                            fontWeight: asignado ? 700 : 400,
+                            transition: "all 0.15s",
+                          }}>
+                            {asignado ? "✓ " : ""}{f.nombre}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
 
-              <div style={{ marginTop: 4, padding: "8px 10px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
+              <div style={{ padding: "8px 10px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, color: "#888" }}>Total del día</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>{Math.round(totales.calorias)} kcal · ${totales.costo.toFixed(0)} MXN</span>
               </div>
