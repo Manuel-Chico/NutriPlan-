@@ -1219,110 +1219,99 @@ export default function NutriPlan() {
             </table>
           </div>
 
-          {/* Alimentos seleccionados — tabla interactiva con sliders */}
+          {/* Alimentos seleccionados — tabla con porción editable */}
           {totalAlimentos.length > 0 && (() => {
-            const metaPro  = Math.round(calMeta * dist.p / 4);
-            const metaCar  = Math.round(calMeta * dist.c / 4);
-            const metaLip  = Math.round(calMeta * dist.l / 9);
-            const metaCal  = calMeta;
-            const diffPro  = totales.proteinas  - metaPro;
-            const diffCar  = totales.carbos     - metaCar;
-            const diffLip  = totales.lipidos    - metaLip;
-            const diffCal  = totales.calorias   - metaCal;
-            const okPro    = Math.abs(diffPro / metaPro)  < 0.08;
-            const okCar    = Math.abs(diffCar / metaCar)  < 0.08;
-            const okLip    = Math.abs(diffLip / metaLip)  < 0.08;
-            const okCal    = Math.abs(diffCal / metaCal)  < 0.05;
-            const colPro   = okPro ? "#81C784" : diffPro > 0 ? "#ef5350" : "#FFB74D";
-            const colCar   = okCar ? "#64B5F6" : diffCar > 0 ? "#ef5350" : "#FFB74D";
-            const colLip   = okLip ? "#FFB74D" : diffLip > 0 ? "#ef5350" : "#64B5F6";
-            const colCal   = okCal ? "#81C784" : diffCal > 0 ? "#ef5350" : "#FFB74D";
+            const metaPro = Math.round(calMeta * dist.p / 4);
+            const metaCar = Math.round(calMeta * dist.c / 4);
+            const metaLip = Math.round(calMeta * dist.l / 9);
+            const metaCal = calMeta;
+            const diffPro = totales.proteinas - metaPro;
+            const diffCar = totales.carbos    - metaCar;
+            const diffLip = totales.lipidos   - metaLip;
+            const diffCal = totales.calorias  - metaCal;
+            const okPro   = Math.abs(diffPro / metaPro) < 0.08;
+            const okCar   = Math.abs(diffCar / metaCar) < 0.08;
+            const okLip   = Math.abs(diffLip / metaLip) < 0.08;
+            const okCal   = Math.abs(diffCal / metaCal) < 0.05;
+            const colPro  = okPro ? "#81C784" : diffPro > 0 ? "#ef5350" : "#FFB74D";
+            const colCar  = okCar ? "#64B5F6" : diffCar > 0 ? "#ef5350" : "#FFB74D";
+            const colLip  = okLip ? "#FFB74D" : diffLip > 0 ? "#ef5350" : "#64B5F6";
+            const colCal  = okCal ? "#81C784" : diffCal > 0 ? "#ef5350" : "#FFB74D";
             return (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <div style={{ fontSize: 11, color: "#CE93D8", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600 }}>🍽️ Alimentos del plan</div>
-                  <div style={{ fontSize: 10, color: "#555" }}>Ajusta las porciones →</div>
+                  <div style={{ fontSize: 9, color: "#555" }}>toca la porción para editar</div>
                 </div>
-
-                {/* Barra de progreso calórico */}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, color: "#888" }}>Total calorías</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: colCal }}>{Math.round(totales.calorias)} <span style={{ fontSize: 10, color: "#555", fontWeight: 400 }}>/ {metaCal} kcal</span></span>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 6, overflow: "hidden" }}>
-                    <div style={{ width: `${Math.min((totales.calorias / metaCal) * 100, 100)}%`, height: "100%", background: colCal, borderRadius: 99, transition: "width 0.3s ease" }} />
-                  </div>
-                </div>
-
-                {/* Tabla por alimento con slider */}
-                {totalAlimentos.map((f, i) => {
-                  const porcionActual = porciones[f.id] ?? f.porcion;
-                  const factor        = porcionActual / f.porcion;
-                  const costo         = costoPorcion(f, precios) * factor;
-                  const minP = Math.round(f.porcion * 0.25);
-                  const maxP = Math.round(f.porcion * 3);
-                  return (
-                    <div key={f.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: i < totalAlimentos.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#ddd" }}>{f.nombre}</span>
-                        <span style={{ fontSize: 12, color: "#4CAF50" }}>${costo.toFixed(1)}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "#666", marginBottom: 6 }}>
-                        <span style={{ color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}P</span>
-                        {" · "}
-                        <span style={{ color: "#64B5F6" }}>{(f.carbos * factor).toFixed(1)}C</span>
-                        {" · "}
-                        <span style={{ color: "#FFB74D" }}>{(f.lipidos * factor).toFixed(1)}L</span>
-                        {" · "}
-                        <span style={{ color: "#ddd", fontWeight: 700 }}>{Math.round(f.calorias * factor)} kcal</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <input
-                          type="range"
-                          min={minP}
-                          max={maxP}
-                          step={5}
-                          value={porcionActual}
-                          onChange={e => setPorciones(p => ({ ...p, [f.id]: +e.target.value }))}
-                          style={{ flex: 1, accentColor: "#CE93D8", cursor: "pointer" }}
-                        />
-                        <span style={{ fontSize: 12, color: "#CE93D8", fontWeight: 700, minWidth: 44, textAlign: "right" }}>{porcionActual}g</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#333", marginTop: 1 }}>
-                        <span>{minP}g</span><span>{maxP}g</span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Fila de totales con color dinámico */}
-                <div style={{ borderTop: "1.5px solid rgba(255,255,255,0.1)", paddingTop: 12, marginTop: 4 }}>
-                  <div style={{ fontSize: 10, color: "#555", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Totales vs meta</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-                    {[
-                      ["🥩 Pro", totales.proteinas, metaPro, colPro, "g", diffPro],
-                      ["🌾 Car", totales.carbos,    metaCar, colCar, "g", diffCar],
-                      ["🥑 Lip", totales.lipidos,   metaLip, colLip, "g", diffLip],
-                    ].map(([label, actual, meta, col, unit, diff]) => (
-                      <div key={label} style={{ padding: "8px 10px", background: `${col}12`, border: `1px solid ${col}33`, borderRadius: 10, textAlign: "center" }}>
-                        <div style={{ fontSize: 9, color: "#555", marginBottom: 3 }}>{label}</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: col }}>{actual.toFixed(0)}{unit}</div>
-                        <div style={{ fontSize: 9, color: "#444" }}>/{meta}{unit} {Math.abs(diff) < 1 ? "✓" : diff > 0 ? `+${diff.toFixed(0)}` : diff.toFixed(0)}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 8, padding: "10px 14px", background: `${colCal}10`, border: `1px solid ${colCal}33`, borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 12, color: "#888" }}>Total kcal</span>
-                    <div style={{ textAlign: "right" }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: colCal }}>{Math.round(totales.calorias)}</span>
-                      <span style={{ fontSize: 11, color: "#555" }}> / {metaCal} kcal</span>
-                      <span style={{ fontSize: 11, color: colCal, marginLeft: 6 }}>{okCal ? "✓" : diffCal > 0 ? `+${Math.round(diffCal)}` : Math.round(diffCal)}</span>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 6, textAlign: "right" }}>
-                    <span style={{ fontSize: 11, color: "#4CAF50" }}>Costo total: ${totales.costo.toFixed(0)} MXN</span>
-                  </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                        {["Alimento", "Porción", "Pro", "Car", "Lip", "kcal", "Costo"].map(h => (
+                          <td key={h} style={{ padding: "5px 4px", fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>{h}</td>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {totalAlimentos.map((f, i) => {
+                        const porcionActual = porciones[f.id] ?? f.porcion;
+                        const factor        = porcionActual / f.porcion;
+                        const costoFila     = (costoPorcion(f, precios) / f.porcion) * porcionActual;
+                        return (
+                          <tr key={f.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                            <td style={{ padding: "8px 4px", color: "#ddd", fontWeight: 600, fontSize: 12 }}>{f.nombre}</td>
+                            <td style={{ padding: "4px 4px" }}>
+                              <input
+                                type="number"
+                                min={Math.round(f.porcion * 0.1)}
+                                max={Math.round(f.porcion * 5)}
+                                step={5}
+                                value={porcionActual}
+                                onChange={e => {
+                                  const v = +e.target.value;
+                                  if (v > 0) setPorciones(p => ({ ...p, [f.id]: v }));
+                                }}
+                                style={{
+                                  width: 52, padding: "4px 5px", background: "rgba(206,147,216,0.12)",
+                                  border: "1px solid rgba(206,147,216,0.35)", borderRadius: 7,
+                                  color: "#CE93D8", fontSize: 12, fontWeight: 700,
+                                  outline: "none", textAlign: "center",
+                                }}
+                              />
+                              <span style={{ fontSize: 9, color: "#555", marginLeft: 2 }}>g</span>
+                            </td>
+                            <td style={{ padding: "8px 4px", color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}</td>
+                            <td style={{ padding: "8px 4px", color: "#64B5F6" }}>{(f.carbos    * factor).toFixed(1)}</td>
+                            <td style={{ padding: "8px 4px", color: "#FFB74D" }}>{(f.lipidos   * factor).toFixed(1)}</td>
+                            <td style={{ padding: "8px 4px", color: "#ddd",    fontWeight: 600 }}>{Math.round(f.calorias * factor)}</td>
+                            <td style={{ padding: "8px 4px", color: "#4CAF50" }}>${costoFila.toFixed(1)}</td>
+                          </tr>
+                        );
+                      })}
+                      {/* Fila de totales con color dinámico */}
+                      <tr style={{ borderTop: "1.5px solid rgba(255,255,255,0.12)" }}>
+                        <td style={{ padding: "9px 4px", color: "#FFB74D", fontWeight: 700 }}>Total</td>
+                        <td></td>
+                        <td style={{ padding: "9px 4px", fontWeight: 700, color: colPro }}>
+                          {totales.proteinas.toFixed(1)}
+                          <div style={{ fontSize: 8, color: "#444" }}>/{metaPro}g {okPro ? "✓" : diffPro > 0 ? `+${diffPro.toFixed(0)}` : diffPro.toFixed(0)}</div>
+                        </td>
+                        <td style={{ padding: "9px 4px", fontWeight: 700, color: colCar }}>
+                          {totales.carbos.toFixed(1)}
+                          <div style={{ fontSize: 8, color: "#444" }}>/{metaCar}g {okCar ? "✓" : diffCar > 0 ? `+${diffCar.toFixed(0)}` : diffCar.toFixed(0)}</div>
+                        </td>
+                        <td style={{ padding: "9px 4px", fontWeight: 700, color: colLip }}>
+                          {totales.lipidos.toFixed(1)}
+                          <div style={{ fontSize: 8, color: "#444" }}>/{metaLip}g {okLip ? "✓" : diffLip > 0 ? `+${diffLip.toFixed(0)}` : diffLip.toFixed(0)}</div>
+                        </td>
+                        <td style={{ padding: "9px 4px", fontWeight: 700, color: colCal }}>
+                          {Math.round(totales.calorias)}
+                          <div style={{ fontSize: 8, color: "#444" }}>/{metaCal} {okCal ? "✓" : diffCal > 0 ? `+${Math.round(diffCal)}` : Math.round(diffCal)}</div>
+                        </td>
+                        <td style={{ padding: "9px 4px", color: "#4CAF50", fontWeight: 700 }}>${totales.costo.toFixed(0)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             );
