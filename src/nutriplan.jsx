@@ -1,6 +1,51 @@
 import { useState, useMemo } from "react";
 
 // ── BASE DE DATOS DE ALIMENTOS ─────────────────────────────────────────
+// ── Diccionario es↔en de alimentos comunes (para mejorar búsquedas en FatSecret) ──
+const TRADUCCION_ALIMENTOS = {
+  "papa": "potato", "papas": "potatoes", "cebolla": "onion", "cebollas": "onions",
+  "zanahoria": "carrot", "zanahorias": "carrots", "manzana": "apple", "manzanas": "apples",
+  "platano": "banana", "plátano": "banana", "platanos": "bananas", "plátanos": "bananas",
+  "pollo": "chicken", "res": "beef", "carne": "meat", "puerco": "pork", "cerdo": "pork",
+  "pescado": "fish", "atun": "tuna", "atún": "tuna", "huevo": "egg", "huevos": "eggs",
+  "leche": "milk", "queso": "cheese", "yogur": "yogurt", "yogurt": "yogurt",
+  "arroz": "rice", "frijol": "bean", "frijoles": "beans", "lenteja": "lentil", "lentejas": "lentils",
+  "avena": "oats", "pan": "bread", "tortilla": "tortilla", "pasta": "pasta",
+  "tomate": "tomato", "jitomate": "tomato", "tomates": "tomatoes", "jitomates": "tomatoes",
+  "lechuga": "lettuce", "espinaca": "spinach", "espinacas": "spinach", "brocoli": "broccoli", "brócoli": "broccoli",
+  "calabaza": "squash", "calabacita": "zucchini", "pepino": "cucumber", "pimiento": "bell pepper",
+  "chile": "chili pepper", "ajo": "garlic", "elote": "corn", "maiz": "corn", "maíz": "corn",
+  "naranja": "orange", "naranjas": "oranges", "limon": "lime", "limón": "lime",
+  "fresa": "strawberry", "fresas": "strawberries", "uva": "grape", "uvas": "grapes",
+  "sandia": "watermelon", "sandía": "watermelon", "melon": "melon", "melón": "melon",
+  "pina": "pineapple", "piña": "pineapple", "mango": "mango", "papaya": "papaya",
+  "aguacate": "avocado", "aceite": "oil", "mantequilla": "butter", "crema": "cream",
+  "almendra": "almond", "almendras": "almonds", "nuez": "walnut", "nueces": "walnuts",
+  "cacahuate": "peanut", "cacahuates": "peanuts", "tocino": "bacon", "jamon": "ham", "jamón": "ham",
+  "salchicha": "sausage", "azucar": "sugar", "azúcar": "sugar", "miel": "honey",
+  "harina": "flour", "camote": "sweet potato", "betabel": "beet", "apio": "celery",
+  "col": "cabbage", "coliflor": "cauliflower", "champinon": "mushroom", "champiñón": "mushroom",
+  "champinones": "mushrooms", "champiñones": "mushrooms", "ejote": "green bean", "ejotes": "green beans",
+};
+// Inverso (en→es) para mostrar el nombre en español junto al resultado en inglés
+const TRADUCCION_INVERSA = Object.entries(TRADUCCION_ALIMENTOS).reduce((acc, [es, en]) => {
+  acc[en.toLowerCase()] = es;
+  return acc;
+}, {});
+
+function traducirParaBusqueda(query) {
+  const q = query.trim().toLowerCase();
+  return TRADUCCION_ALIMENTOS[q] || null;
+}
+
+function traducirNombreResultado(nombreIngles) {
+  const n = nombreIngles.trim().toLowerCase();
+  if (TRADUCCION_INVERSA[n]) return TRADUCCION_INVERSA[n];
+  // intenta match por la primera palabra del nombre, ej: Potatoes Flesh Boiled -> potatoes
+  const primera = n.split(/[\s,(]/)[0];
+  return TRADUCCION_INVERSA[primera] || null;
+}
+
 const FOOD_DB = {
   proteinas: [
     { id: "p1", nombre: "Tocino",        porcion: 70,  proteinas: 25.928, carbos: 1.001, lipidos: 25.928, calorias: 378.7, precio_kg: 180, prep: "rapido"   },
@@ -612,7 +657,7 @@ export default function NutriPlan() {
     return { ...prev, [cat]: exists ? arr.filter(f => f.id !== food.id) : [...arr, food] };
   });
 
-  // ── ✅ CAMBIO 1: buscarAlimento — ahora usa /api/fatsecret ────────────
+  // ── ✅ CAMBIO 1: buscarAlimento — ahora usa /api/fatsecret + fallback de traducción ──
   const buscarAlimento = async (query) => {
     if (!query || query.length < 2) { setResultadosBusqueda([]); return; }
     setBuscando(true); setErrorBusqueda(null);
@@ -620,8 +665,23 @@ export default function NutriPlan() {
       const res  = await fetch(`/api/fatsecret?query=${encodeURIComponent(query)}&max_results=20`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error de búsqueda");
-      if (data.resultados?.length > 0) {
-        setResultadosBusqueda(data.resultados);
+
+      let resultados = data.resultados || [];
+
+      // Si no hubo resultados (o muy pocos), intenta traducir la query a inglés y buscar de nuevo
+      const traduccion = traducirParaBusqueda(query);
+      if (resultados.length === 0 && traduccion) {
+        const res2  = await fetch(`/api/fatsecret?query=${encodeURIComponent(traduccion)}&max_results=20`);
+        const data2 = await res2.json();
+        if (res2.ok && data2.resultados?.length > 0) {
+          resultados = data2.resultados;
+        }
+      }
+
+      if (resultados.length > 0) {
+        // Anota nombre en español (si lo reconocemos) para mostrar ambos idiomas
+        const conTraduccion = resultados.map(f => ({ ...f, nombre_es: traducirNombreResultado(f.nombre) }));
+        setResultadosBusqueda(conTraduccion);
       } else {
         setResultadosBusqueda([]);
         setErrorBusqueda("Sin resultados para esa búsqueda.");
@@ -1464,7 +1524,9 @@ export default function NutriPlan() {
               {resultadosBusqueda.map(f => (
                 <div key={f.id} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 10, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{f.nombre}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>
+                      {f.nombre_es ? <>{f.nombre_es.charAt(0).toUpperCase() + f.nombre_es.slice(1)} <span style={{ color: "#888", fontWeight: 400, fontStyle: "italic" }}>({f.nombre})</span></> : f.nombre}
+                    </div>
                     <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{f.porcion}g · {f.proteinas.toFixed(1)}P · {f.carbos.toFixed(1)}C · {f.lipidos.toFixed(1)}L · {f.calorias}kcal</div>
                   </div>
                   <button onClick={() => {
