@@ -46,6 +46,35 @@ function traducirNombreResultado(nombreIngles) {
   return TRADUCCION_INVERSA[primera] || null;
 }
 
+// ── Heurística genérico vs platillo compuesto ──────────────────────────
+// FatSecret a veces devuelve solo platillos preparados (ej. "Papas Gratinadas")
+// en vez del alimento genérico (ej. "Potatoes"). Esto detecta cuáles son
+// probablemente platillos compuestos para poder mostrarlos después.
+const PALABRAS_COMPUESTO = [
+  "with", "casserole", "salad", "soup", "pie", "fries", "fried", "sandwich",
+  "burger", "stuffed", "style", "mix", "bake", "baked", "stew", "gratin",
+  "mashed", "chowder", "skillet", "bowl", "wrap", "taco", "burrito",
+  "quesadilla", "empanada", "nuggets", "croquettes", "chips", "sauce",
+  "casera", "guisad", "ensalada", "sopa", "rellen", "gratinad", "milanesa",
+  "tortita", "frit",
+];
+
+function esResultadoGenerico(nombreIngles, terminoEsperado) {
+  const n = (nombreIngles || "").trim().toLowerCase();
+  if (PALABRAS_COMPUESTO.some(p => n.includes(p))) return false;
+  const cantidadPalabras = n.split(/\s+/).filter(Boolean).length;
+  if (!terminoEsperado) return cantidadPalabras <= 2;
+  const t = terminoEsperado.trim().toLowerCase();
+  const raizT = t.replace(/s$/, "");
+  // Genérico si el nombre empieza con el término esperado (singular o plural)
+  // y no le sobran más de una palabra descriptiva (ej. "raw", "boiled").
+  if (n.startsWith(t) || n.startsWith(raizT)) {
+    const sobrante = n.replace(raizT, "").trim().split(/\s+/).filter(Boolean);
+    return sobrante.length <= 1;
+  }
+  return cantidadPalabras <= 2;
+}
+
 const FOOD_DB = {
   proteinas: [
     { id: "p1", nombre: "Tocino",        porcion: 70,  proteinas: 25.928, carbos: 1.001, lipidos: 25.928, calorias: 378.7, precio_kg: 180, prep: "rapido"   },
@@ -657,7 +686,7 @@ export default function NutriPlan() {
     return { ...prev, [cat]: exists ? arr.filter(f => f.id !== food.id) : [...arr, food] };
   });
 
-  // ── ✅ CAMBIO 1: buscarAlimento — ahora usa /api/fatsecret + fallback de traducción ──
+  // ── ✅ CAMBIO 1 (rev.2): buscarAlimento — fallback de traducción ya no depende de "0 resultados" ──
   const buscarAlimento = async (query) => {
     if (!query || query.length < 2) { setResultadosBusqueda([]); return; }
     setBuscando(true); setErrorBusqueda(null);
@@ -668,20 +697,32 @@ export default function NutriPlan() {
 
       let resultados = data.resultados || [];
 
-      // Si no hubo resultados (o muy pocos), intenta traducir la query a inglés y buscar de nuevo
+      // Si existe traducción en el diccionario, SIEMPRE buscamos también en inglés
+      // — antes solo se disparaba con 0 resultados, así que búsquedas como
+      // "papas" (que sí traen resultados, pero de baja calidad) nunca llegaban
+      // al alimento genérico en inglés. Ahora se combinan ambos resultados.
       const traduccion = traducirParaBusqueda(query);
-      if (resultados.length === 0 && traduccion) {
+      if (traduccion) {
         const res2  = await fetch(`/api/fatsecret?query=${encodeURIComponent(traduccion)}&max_results=20`);
         const data2 = await res2.json();
         if (res2.ok && data2.resultados?.length > 0) {
-          resultados = data2.resultados;
+          const idsExistentes = new Set(resultados.map(r => r.id));
+          const nuevos = data2.resultados.filter(r => !idsExistentes.has(r.id));
+          resultados = [...resultados, ...nuevos];
         }
       }
 
       if (resultados.length > 0) {
-        // Anota nombre en español (si lo reconocemos) para mostrar ambos idiomas
-        const conTraduccion = resultados.map(f => ({ ...f, nombre_es: traducirNombreResultado(f.nombre) }));
-        setResultadosBusqueda(conTraduccion);
+        // Anota nombre en español (si lo reconocemos) y marca cuáles son
+        // alimentos genéricos vs. platillos compuestos
+        const conTraduccion = resultados.map(f => ({
+          ...f,
+          nombre_es: traducirNombreResultado(f.nombre),
+          _generico: esResultadoGenerico(f.nombre, traduccion),
+        }));
+        // Genéricos primero, platillos compuestos después (orden estable dentro de cada grupo)
+        conTraduccion.sort((a, b) => (a._generico === b._generico ? 0 : a._generico ? -1 : 1));
+        setResultadosBusqueda(conTraduccion.slice(0, 20));
       } else {
         setResultadosBusqueda([]);
         setErrorBusqueda("Sin resultados para esa búsqueda.");
