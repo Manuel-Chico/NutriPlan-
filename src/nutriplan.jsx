@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 // ── BASE DE DATOS DE ALIMENTOS ─────────────────────────────────────────
 // ── Diccionario es↔en de alimentos comunes (para mejorar búsquedas en FatSecret) ──
@@ -172,6 +172,24 @@ const OBJETIVOS = [
 ];
 
 function calcIMC(peso, talla) { return peso / ((talla / 100) ** 2); }
+
+// ── ID anónimo por dispositivo — para persistir registros sin necesitar login (opción B) ──
+function getUserId() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    let id = localStorage.getItem("nutriplan_uid");
+    if (!id) {
+      id = (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `u_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("nutriplan_uid", id);
+    }
+    return id;
+  } catch {
+    // localStorage puede fallar en modo incógnito estricto o navegación privada
+    return `u_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+}
 function calcTMB(peso, talla, edad, sexo) {
   return sexo === "M" ? 10 * peso + 6.25 * talla - 5 * edad + 5 : 10 * peso + 6.25 * talla - 5 * edad - 161;
 }
@@ -268,6 +286,18 @@ const GUIAS_DIETA = {
     alimentos: { si: ["Proteínas magras", "Verduras y hortalizas", "Frutas moderadas", "Legumbres", "Cereales integrales", "Aguacate", "Huevo", "Atún", "Pollo"], no: ["Azúcar añadida", "Ultraprocesados", "Bebidas azucaradas", "Harinas refinadas en exceso", "Alcohol frecuente"] },
     advertencias: ["El déficit no debe superar 500 kcal/día para no perder músculo", "Proteína mínima de 1.2 g/kg para preservar masa magra", "Pesarse siempre en las mismas condiciones — misma hora, mismo día", "Una meseta de 2+ semanas es señal de ajustar el plan, no de abandonarlo"],
   },
+  quemar_guia: {
+    titulo: "Quema de Grasa — Recomposición corporal", icon: "🔥", color: "#FF8A65",
+    resumen: "Déficit calórico leve combinado con proteína elevada. La prioridad no es bajar la báscula lo más rápido posible, sino perder grasa minimizando la pérdida de músculo.",
+    mecanismo: "Un déficit moderado (8–10%) junto con proteína alta (hasta 2 g/kg) maximiza la oxidación de grasa mientras preserva masa magra — a diferencia de un déficit agresivo enfocado solo en el peso total.",
+    macros: "40% proteína · 40% carbos · 20% grasas",
+    ciencia: "Longland et al., Am J Clin Nutr 2016: proteína alta (2.4g/kg) durante déficit calórico combinado con entrenamiento de fuerza preserva e incluso aumenta masa muscular mientras se pierde grasa, frente a dietas con menor proteína.",
+    timeline: [{ dia: "Semana 1–2", titulo: "Ajuste", desc: "El cuerpo se adapta al déficit leve. Energía y rendimiento se mantienen estables — no debería sentirse como una dieta agresiva.", color: "#FFB74D" }, { dia: "Semana 3–4", titulo: "Recomposición visible", desc: "Cambios en composición corporal antes que en el peso de la báscula. La ropa empieza a sentirse diferente.", color: "#81C784" }, { dia: "Mes 2–3", titulo: "Definición", desc: "Pérdida de grasa sostenida con fuerza estable o en aumento si el entrenamiento es consistente.", color: "#64B5F6" }, { dia: "Mes 3+", titulo: "Mantenimiento del progreso", desc: "Reevaluar el déficit si hay meseta — la proteína alta facilita ajustar calorías sin perder músculo.", color: "#CE93D8" }],
+    ketoFlu: { normales: ["Hambre leve entre comidas si el déficit se nota", "Ligera fatiga en entrenamientos intensos los primeros días", "Necesidad de planear comidas para llegar a la proteína meta"], parar: ["Pérdida de fuerza notoria en el gimnasio semana tras semana", "Pérdida de peso mayor a 1% del peso corporal por semana sostenida", "Fatiga persistente o ánimo bajo constante"], remedios: ["Priorizar proteína en cada comida antes que otros macros", "Ajustar el déficit a 8–10%, no más, si hay caída de rendimiento", "Distribuir la proteína en 3–4 tomas para mejor síntesis muscular"] },
+    recargas: { descripcion: "No requiere recargas formales, pero un día de mantenimiento calórico cada 1–2 semanas ayuda con la adherencia y el rendimiento en entrenamientos pesados.", porSomatotipo: [{ tipo: "Ectomorfo 🦴", protocolo: "Déficit mínimo", recargas: "1 día/sem a TDEE", carbosMax: "TDEE − 8% · 42% carbos" }, { tipo: "Mesomorfo 💪", protocolo: "Déficit leve estándar", recargas: "Opcional cada 10–14 días", carbosMax: "TDEE − 10% · 40% carbos" }, { tipo: "Endomorfo 🛡️", protocolo: "Déficit leve sostenido", recargas: "No necesarias", carbosMax: "TDEE − 12% · 35% carbos" }] },
+    alimentos: { si: ["Proteínas magras en cada comida", "Pollo, pescado, claras de huevo", "Verduras de bajo índice glucémico", "Carbos complejos alrededor del entrenamiento", "Grasas saludables con moderación", "Legumbres"], no: ["Ultraprocesados", "Azúcar añadida", "Alcohol frecuente — interfiere con síntesis proteica", "Grasas en exceso — desplazan proteína sin saciar igual"] },
+    advertencias: ["No confundir con un déficit agresivo — la meta es perder grasa, no peso a cualquier costo", "Proteína es la prioridad #1 de este protocolo, más que en pérdida de peso estándar", "Si el rendimiento en el gimnasio cae notoriamente, el déficit es demasiado grande", "El descanso y sueño afectan directamente la retención de músculo en déficit"],
+  },
   mantener_guia: {
     titulo: "Dieta de Mantenimiento", icon: "⚖️", color: "#64B5F6",
     resumen: "Comer exactamente lo que el cuerpo gasta. Sin déficit ni superávit. Preservar la composición corporal mientras se mantiene la salud metabólica.",
@@ -338,7 +368,7 @@ function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, objetivo, setProtocolo,
   const [seccion, setSeccion] = useState("que");
   // Para protocolo estándar, mostrar la guía correcta según el objetivo
   const guiaKey = guiaActiva === "estandar"
-    ? (objetivo === "mantener" ? "mantener_guia" : objetivo === "masa" ? "masa" : objetivo === "bajar" ? "estandar" : "estandar")
+    ? (objetivo === "mantener" ? "mantener_guia" : objetivo === "masa" ? "masa" : objetivo === "quemar" ? "quemar_guia" : "estandar")
     : guiaActiva;
   const g    = GUIAS_DIETA[guiaKey];
   const soma = SOMATOTIPOS.find(s => s.id === somatotipo);
@@ -634,6 +664,10 @@ export default function NutriPlan() {
   const [buscando, setBuscando]     = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState(null);
   const [registros, setRegistros]   = useState([]);
+  const [cargandoRegistros, setCargandoRegistros] = useState(true);
+  const [errorRegistros, setErrorRegistros] = useState(null);
+  const [editandoRegistroId, setEditandoRegistroId] = useState(null);
+  const [userId] = useState(getUserId);
   const [nuevoRegistro, setNuevoRegistro] = useState({ peso: "", cintura: "", cuello: "" });
   const [recomendacionIA, setRecomendacionIA] = useState("");
   const [cargandoIA, setCargandoIA] = useState(false);
@@ -646,6 +680,23 @@ export default function NutriPlan() {
 
   const daysLeft = trialStart ? getDaysLeft(trialStart) : 14;
   const trialPct = trialStart ? Math.min(((14 - daysLeft) / 14) * 100, 100) : 0;
+
+  // ── Cargar registros guardados de este dispositivo al abrir la app ──
+  useEffect(() => {
+    if (!userId) { setCargandoRegistros(false); return; }
+    (async () => {
+      try {
+        const res  = await fetch(`/api/registros?userId=${encodeURIComponent(userId)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "No se pudieron cargar tus registros");
+        setRegistros(Array.isArray(data.registros) ? data.registros : []);
+      } catch (err) {
+        setErrorRegistros(err.message || "Error al cargar registros guardados.");
+      } finally {
+        setCargandoRegistros(false);
+      }
+    })();
+  }, [userId]);
 
   const dist = useMemo(() => {
     const tabla = DISTRIBUCIONES[objetivo] || DISTRIBUCIONES.mantener;
@@ -769,12 +820,66 @@ export default function NutriPlan() {
     }
   };
 
-  const guardarRegistro = () => {
+  const guardarRegistro = async () => {
     if (!nuevoRegistro.peso || !nuevoRegistro.cintura) return;
-    const nuevo  = { ...nuevoRegistro, fecha: new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short" }), semana: registros.length + 1 };
-    const nuevos = [...registros, nuevo];
-    setRegistros(nuevos); setNuevoRegistro({ peso: "", cintura: "", cuello: "" });
-    pedirRecomendacionIA(nuevos);
+    setErrorRegistros(null);
+    const datos = { peso: nuevoRegistro.peso, cintura: nuevoRegistro.cintura, cuello: nuevoRegistro.cuello || null };
+    try {
+      if (editandoRegistroId) {
+        // ── Actualizar un registro existente ──
+        const res  = await fetch("/api/registros", {
+          method:  "PUT",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ userId, id: editandoRegistroId, ...datos }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "No se pudo actualizar el registro");
+        const nuevos = registros.map(r => (r.id === editandoRegistroId ? data.registro : r));
+        setRegistros(nuevos);
+        setEditandoRegistroId(null);
+        setNuevoRegistro({ peso: "", cintura: "", cuello: "" });
+        pedirRecomendacionIA(nuevos);
+      } else {
+        // ── Crear un registro nuevo ──
+        const fecha = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+        const res  = await fetch("/api/registros", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ userId, fecha, ...datos }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "No se pudo guardar el registro");
+        const nuevos = [...registros, data.registro];
+        setRegistros(nuevos);
+        setNuevoRegistro({ peso: "", cintura: "", cuello: "" });
+        pedirRecomendacionIA(nuevos);
+      }
+    } catch (err) {
+      setErrorRegistros(err.message || "Error al guardar. Intenta de nuevo.");
+    }
+  };
+
+  const editarRegistro = (r) => {
+    setNuevoRegistro({ peso: String(r.peso), cintura: String(r.cintura), cuello: r.cuello != null ? String(r.cuello) : "" });
+    setEditandoRegistroId(r.id);
+  };
+
+  const cancelarEdicionRegistro = () => {
+    setEditandoRegistroId(null);
+    setNuevoRegistro({ peso: "", cintura: "", cuello: "" });
+  };
+
+  const borrarRegistro = async (id) => {
+    if (typeof window !== "undefined" && !window.confirm("¿Borrar este registro? No se puede deshacer.")) return;
+    setErrorRegistros(null);
+    try {
+      const res = await fetch(`/api/registros?userId=${encodeURIComponent(userId)}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "No se pudo borrar el registro"); }
+      setRegistros(registros.filter(r => r.id !== id));
+      if (editandoRegistroId === id) cancelarEdicionRegistro();
+    } catch (err) {
+      setErrorRegistros(err.message || "Error al borrar. Intenta de nuevo.");
+    }
   };
 
   const handleRegister = () => { if (!registro.nombre || !registro.email) return; setTrialStart(new Date()); setScreen("cuestionario"); };
@@ -976,7 +1081,9 @@ export default function NutriPlan() {
             )}
           </div>
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px 18px", marginBottom: 20 }}>
-            <div style={{ fontSize: 12, color: "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>📝 Registro semanal #{registros.length + 1}</div>
+            <div style={{ fontSize: 12, color: editandoRegistroId ? "#FFB74D" : "#81C784", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>
+              {editandoRegistroId ? `✏️ Editando Semana ${registros.find(r => r.id === editandoRegistroId)?.semana ?? ""}` : `📝 Registro semanal #${registros.length + 1}`}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               {[{ key: "peso", label: "Peso (kg)", placeholder: "75.5" }, { key: "cintura", label: "Cintura (cm)", placeholder: "85" }].map(({ key, label, placeholder }) => (
                 <div key={key}>
@@ -993,7 +1100,15 @@ export default function NutriPlan() {
                 </div>
               ))}
             </div>
-            <button onClick={guardarRegistro} disabled={!nuevoRegistro.peso || !nuevoRegistro.cintura} style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: nuevoRegistro.peso && nuevoRegistro.cintura ? "#FFB74D" : "#222", color: nuevoRegistro.peso && nuevoRegistro.cintura ? "#000" : "#555", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Guardar y analizar con IA →</button>
+            {errorRegistros && <div style={{ fontSize: 12, color: "#ef9a9a", marginBottom: 10 }}>⚠️ {errorRegistros}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={guardarRegistro} disabled={!nuevoRegistro.peso || !nuevoRegistro.cintura} style={{ flex: 1, padding: "13px", borderRadius: 12, border: "none", background: nuevoRegistro.peso && nuevoRegistro.cintura ? "#FFB74D" : "#222", color: nuevoRegistro.peso && nuevoRegistro.cintura ? "#000" : "#555", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                {editandoRegistroId ? "Guardar cambios →" : "Guardar y analizar con IA →"}
+              </button>
+              {editandoRegistroId && (
+                <button onClick={cancelarEdicionRegistro} style={{ padding: "13px 16px", borderRadius: 12, border: "1.5px solid #333", background: "transparent", color: "#888", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+              )}
+            </div>
           </div>
           {registros.length > 0 && (() => {
             const W = 320; const H = 110; const pad = 28;
@@ -1055,14 +1170,20 @@ export default function NutriPlan() {
                 const diffPeso = prev ? (+r.peso - +prev.peso).toFixed(1) : null; const diffCintura = prev ? (+r.cintura - +prev.cintura).toFixed(1) : null;
                 const pctG = calcGrasaCorporal(+r.cintura, +r.cuello, +perfil.talla, +perfil.cadera, perfil.sexo);
                 return (
-                  <div key={i} style={{ padding: "12px 0", borderBottom: i < registros.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                  <div key={r.id ?? i} style={{ padding: "12px 0", borderBottom: i < registros.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>Semana {r.semana} <span style={{ color: "#555", fontWeight: 400, fontSize: 11 }}>· {r.fecha}</span></span>
                       {pctG && <span style={{ fontSize: 11, color: "#CE93D8" }}>Grasa: {pctG.toFixed(1)}%</span>}
                     </div>
-                    <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
-                      <span>⚖️ {r.peso} kg {diffPeso && <span style={{ color: +diffPeso <= 0 ? "#81C784" : "#ef5350" }}>({+diffPeso > 0 ? "+" : ""}{diffPeso})</span>}</span>
-                      <span>📏 {r.cintura} cm {diffCintura && <span style={{ color: +diffCintura <= 0 ? "#81C784" : "#ef5350" }}>({+diffCintura > 0 ? "+" : ""}{diffCintura})</span>}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
+                        <span>⚖️ {r.peso} kg {diffPeso && <span style={{ color: +diffPeso <= 0 ? "#81C784" : "#ef5350" }}>({+diffPeso > 0 ? "+" : ""}{diffPeso})</span>}</span>
+                        <span>📏 {r.cintura} cm {diffCintura && <span style={{ color: +diffCintura <= 0 ? "#81C784" : "#ef5350" }}>({+diffCintura > 0 ? "+" : ""}{diffCintura})</span>}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button onClick={() => editarRegistro(r)} style={{ background: "none", border: "none", color: "#FFB74D", fontSize: 11, cursor: "pointer", padding: 0 }}>Editar</button>
+                        <button onClick={() => borrarRegistro(r.id)} style={{ background: "none", border: "none", color: "#ef9a9a", fontSize: 11, cursor: "pointer", padding: 0 }}>Borrar</button>
+                      </div>
                     </div>
                   </div>
                 );
