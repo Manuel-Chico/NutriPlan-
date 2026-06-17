@@ -960,6 +960,19 @@ export default function NutriPlan() {
     }
   };
 
+  const borrarPlanDia = async (fecha) => {
+    if (typeof window !== "undefined" && !window.confirm(`¿Borrar el plan del ${fecha}? No se puede deshacer.`)) return;
+    setErrorHistorial(null);
+    try {
+      const res = await fetch(`/api/planes?userId=${encodeURIComponent(userId)}&fecha=${encodeURIComponent(fecha)}`, { method: "DELETE" });
+      if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "No se pudo borrar el plan"); }
+      setHistorialPlanesData(historialPlanesData.filter(p => p.fecha !== fecha));
+      if (fechaHistorialAbierta === fecha) setFechaHistorialAbierta(null);
+    } catch (err) {
+      setErrorHistorial(err.message || "Error al borrar el plan. Intenta de nuevo.");
+    }
+  };
+
   const handleRegister = () => { if (!registro.nombre || !registro.email) return; setTrialStart(new Date()); setScreen("cuestionario"); };
 
   const handleRespuesta = (pregId, opId) => {
@@ -1306,7 +1319,13 @@ export default function NutriPlan() {
               <div key={p.fecha} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, marginBottom: 12, overflow: "hidden" }}>
                 <button onClick={() => setFechaHistorialAbierta(abierto ? null : p.fecha)} style={{ width: "100%", padding: "14px 16px", background: "none", border: "none", color: "#fff", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{p.fecha}{esHoy && <span style={{ color: "#81C784", fontSize: 11 }}> · hoy</span>}</span>
-                  <span style={{ color: "#666", fontSize: 16 }}>{abierto ? "▾" : "▸"}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); borrarPlanDia(p.fecha); }}
+                      style={{ color: "#ef9a9a", fontSize: 11, fontWeight: 600 }}
+                    >Borrar</span>
+                    <span style={{ color: "#666", fontSize: 16 }}>{abierto ? "▾" : "▸"}</span>
+                  </span>
                 </button>
                 {abierto && (
                   <div style={{ padding: "0 16px 16px" }}>
