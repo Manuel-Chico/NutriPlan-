@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 
 // ── BASE DE DATOS DE ALIMENTOS ─────────────────────────────────────────
 // ── Diccionario es↔en de alimentos comunes (para mejorar búsquedas en FatSecret) ──
@@ -73,6 +73,21 @@ function esResultadoGenerico(nombreIngles, terminoEsperado) {
     return sobrante.length <= 1;
   }
   return cantidadPalabras <= 2;
+}
+
+// ── Fecha local (YYYY-MM-DD) — evita que el corte UTC desfase el "día de hoy" ──
+function fechaLocalISO(d = new Date()) {
+  const offsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offsetMs).toISOString().slice(0, 10);
+}
+
+// ── Calcula totales de macros/costo para un plan guardado (no es el estado en vivo) ──
+function calcularTotalesDe(seleccion, porciones, precios) {
+  const all = [...(seleccion?.proteinas || []), ...(seleccion?.carbohidratos || []), ...(seleccion?.lipidos || [])];
+  return all.reduce((acc, f) => {
+    const factor = (porciones?.[f.id] ?? f.porcion) / f.porcion;
+    return { calorias: acc.calorias + f.calorias * factor, proteinas: acc.proteinas + f.proteinas * factor, carbos: acc.carbos + f.carbos * factor, lipidos: acc.lipidos + f.lipidos * factor, costo: acc.costo + costoPorcion(f, precios) * factor };
+  }, { calorias: 0, proteinas: 0, carbos: 0, lipidos: 0, costo: 0 });
 }
 
 const FOOD_DB = {
@@ -677,9 +692,72 @@ export default function NutriPlan() {
   const [foodDbExtra, setFoodDbExtra] = useState({ proteinas: [], carbohidratos: [], lipidos: [] });
   const [distComidas, setDistComidas] = useState(null);
   const [editandoDist, setEditandoDist] = useState(false);
+  const [cargandoPlan, setCargandoPlan] = useState(true);
+  const [errorPlan, setErrorPlan] = useState(null);
+  const [guardandoPlan, setGuardandoPlan] = useState(false);
+  const [historialPlanesData, setHistorialPlanesData] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState(null);
+  const [fechaHistorialAbierta, setFechaHistorialAbierta] = useState(null);
+  const planListoRef = useRef(false);
 
   const daysLeft = trialStart ? getDaysLeft(trialStart) : 14;
   const trialPct = trialStart ? Math.min(((14 - daysLeft) / 14) * 100, 100) : 0;
+
+  // ── Cargar el plan de HOY guardado (si existe) al abrir la app ──
+  useEffect(() => {
+    if (!userId) { setCargandoPlan(false); planListoRef.current = true; return; }
+    (async () => {
+      try {
+        const hoy = fechaLocalISO();
+        const res  = await fetch(`/api/planes?userId=${encodeURIComponent(userId)}&fecha=${hoy}`);
+        const data = await res.json();
+        if (res.ok && data.plan) {
+          const d = data.plan.datos || {};
+          if (d.protocolo)    setProtocolo(d.protocolo);
+          if (d.objetivo)     setObjetivo(d.objetivo);
+          if (d.numComidas)   setNumComidas(d.numComidas);
+          if (d.tiempoPrep)   setTiempoPrep(d.tiempoPrep);
+          if (d.restriccion)  setRestriccion(d.restriccion);
+          if (d.seleccion)    setSeleccion(d.seleccion);
+          if (d.porciones)    setPorciones(d.porciones);
+          if (d.precios)      setPrecios(d.precios);
+          if (d.distComidas)  setDistComidas(d.distComidas);
+        }
+      } catch (err) {
+        setErrorPlan("No se pudo cargar el plan guardado de hoy.");
+      } finally {
+        setCargandoPlan(false);
+        planListoRef.current = true;
+      }
+    })();
+  }, [userId]);
+
+  // ── Autoguardado del plan del día (con debounce) — por si se cierra la app sin avisar ──
+  useEffect(() => {
+    if (!planListoRef.current || !userId) return;
+    const hayAlgoQueGuardar = seleccion.proteinas.length || seleccion.carbohidratos.length || seleccion.lipidos.length;
+    if (!hayAlgoQueGuardar) return;
+    const timer = setTimeout(async () => {
+      setGuardandoPlan(true);
+      try {
+        const hoy = fechaLocalISO();
+        const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas };
+        const res = await fetch("/api/planes", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ userId, fecha: hoy, datos }),
+        });
+        if (!res.ok) throw new Error("No se pudo guardar el plan");
+        setErrorPlan(null);
+      } catch (err) {
+        setErrorPlan("No se pudo guardar el plan automáticamente.");
+      } finally {
+        setGuardandoPlan(false);
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [userId, protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas]);
 
   // ── Cargar registros guardados de este dispositivo al abrir la app ──
   useEffect(() => {
@@ -1196,6 +1274,89 @@ export default function NutriPlan() {
     );
   }
 
+  // ── HISTORIAL DE PLANES (solo lectura) ──────────────────────────────────
+  if (screen === "historialPlanes") {
+    const planAbierto = historialPlanesData.find(p => p.fecha === fechaHistorialAbierta);
+    return (
+      <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 60 }}>
+        <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <button onClick={() => { setScreen("app"); setFechaHistorialAbierta(null); }} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: 4, color: "#CE93D8", textTransform: "uppercase" }}>NutriPlan</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Historial de planes</div>
+          </div>
+        </div>
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px" }}>
+          <div style={{ fontSize: 12, color: "#666", marginBottom: 16, lineHeight: 1.5 }}>Aquí puedes ver los planes de días anteriores. Solo el plan de <b>hoy</b> se puede editar — los demás son de solo consulta.</div>
+
+          {cargandoHistorial && <div style={{ textAlign: "center", color: "#666", padding: 30 }}>Cargando historial…</div>}
+          {errorHistorial && <div style={{ fontSize: 13, color: "#ef9a9a", marginBottom: 14 }}>⚠️ {errorHistorial}</div>}
+
+          {!cargandoHistorial && !errorHistorial && historialPlanesData.length === 0 && (
+            <div style={{ textAlign: "center", color: "#555", padding: 30, fontSize: 13 }}>Todavía no hay planes guardados.</div>
+          )}
+
+          {!cargandoHistorial && historialPlanesData.map(p => {
+            const abierto = p.fecha === fechaHistorialAbierta;
+            const datos   = p.datos || {};
+            const tot     = abierto ? calcularTotalesDe(datos.seleccion, datos.porciones, datos.precios) : null;
+            const items   = abierto ? [...(datos.seleccion?.proteinas || []), ...(datos.seleccion?.carbohidratos || []), ...(datos.seleccion?.lipidos || [])] : [];
+            const esHoy   = p.fecha === fechaLocalISO();
+            return (
+              <div key={p.fecha} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, marginBottom: 12, overflow: "hidden" }}>
+                <button onClick={() => setFechaHistorialAbierta(abierto ? null : p.fecha)} style={{ width: "100%", padding: "14px 16px", background: "none", border: "none", color: "#fff", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{p.fecha}{esHoy && <span style={{ color: "#81C784", fontSize: 11 }}> · hoy</span>}</span>
+                  <span style={{ color: "#666", fontSize: 16 }}>{abierto ? "▾" : "▸"}</span>
+                </button>
+                {abierto && (
+                  <div style={{ padding: "0 16px 16px" }}>
+                    <div style={{ fontSize: 11, color: "#888", marginBottom: 10 }}>
+                      {PROTOCOLOS[datos.protocolo]?.icon} {PROTOCOLOS[datos.protocolo]?.label || "—"} · {OBJETIVOS.find(o => o.id === datos.objetivo)?.icon} {OBJETIVOS.find(o => o.id === datos.objetivo)?.label || "—"}
+                    </div>
+                    {items.length === 0 ? (
+                      <div style={{ fontSize: 12, color: "#555" }}>Sin alimentos guardados ese día.</div>
+                    ) : (
+                      <>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 8 }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                              {["Alimento", "Porción", "Pro", "Car", "Lip", "kcal"].map(h => (
+                                <td key={h} style={{ padding: "5px 4px", fontSize: 9, color: "#555", textTransform: "uppercase" }}>{h}</td>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map(f => {
+                              const porcionActual = datos.porciones?.[f.id] ?? f.porcion;
+                              const factor = porcionActual / f.porcion;
+                              return (
+                                <tr key={f.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                  <td style={{ padding: "6px 4px", color: "#ddd" }}>{f.nombre}</td>
+                                  <td style={{ padding: "6px 4px", color: "#aaa" }}>{porcionActual}g</td>
+                                  <td style={{ padding: "6px 4px", color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}</td>
+                                  <td style={{ padding: "6px 4px", color: "#64B5F6" }}>{(f.carbos * factor).toFixed(1)}</td>
+                                  <td style={{ padding: "6px 4px", color: "#FFB74D" }}>{(f.lipidos * factor).toFixed(1)}</td>
+                                  <td style={{ padding: "6px 4px", color: "#ddd", fontWeight: 600 }}>{Math.round(f.calorias * factor)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        <div style={{ fontSize: 12, color: "#FFB74D", fontWeight: 700 }}>
+                          Total: {tot.proteinas.toFixed(1)}g pro · {tot.carbos.toFixed(1)}g car · {tot.lipidos.toFixed(1)}g lip · {Math.round(tot.calorias)} kcal
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // ── PROTOCOLO ─────────────────────────────────────────────────────────
   if (screen === "protocolo") {
     const protDisponibles = Object.values(PROTOCOLOS).filter(p => p.objetivosPermitidos.includes(objetivo));
@@ -1451,14 +1612,18 @@ export default function NutriPlan() {
             const diffCar = totales.carbos    - metaCar;
             const diffLip = totales.lipidos   - metaLip;
             const diffCal = totales.calorias  - metaCal;
-            const okPro   = Math.abs(diffPro / metaPro) < 0.08;
-            const okCar   = Math.abs(diffCar / metaCar) < 0.08;
-            const okLip   = Math.abs(diffLip / metaLip) < 0.08;
-            const okCal   = Math.abs(diffCal / metaCal) < 0.05;
+            const okPro   = Math.abs(diffPro / metaPro) < 0.03;
+            const okCar   = Math.abs(diffCar / metaCar) < 0.03;
+            const okLip   = Math.abs(diffLip / metaLip) < 0.03;
+            const okCal   = Math.abs(diffCal / metaCal) < 0.03;
             const colPro  = okPro ? "#81C784" : diffPro > 0 ? "#ef5350" : "#FFB74D";
             const colCar  = okCar ? "#64B5F6" : diffCar > 0 ? "#ef5350" : "#FFB74D";
             const colLip  = okLip ? "#FFB74D" : diffLip > 0 ? "#ef5350" : "#64B5F6";
             const colCal  = okCal ? "#81C784" : diffCal > 0 ? "#ef5350" : "#FFB74D";
+            // % que cada macro representa del total de calorías (igual que en la hoja de cálculo original)
+            const pctProCal = totales.calorias > 0 ? (totales.proteinas * 4 / totales.calorias) * 100 : 0;
+            const pctCarCal = totales.calorias > 0 ? (totales.carbos    * 4 / totales.calorias) * 100 : 0;
+            const pctLipCal = totales.calorias > 0 ? (totales.lipidos   * 9 / totales.calorias) * 100 : 0;
             return (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -1517,14 +1682,17 @@ export default function NutriPlan() {
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colPro }}>
                           {totales.proteinas.toFixed(1)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaPro}g {okPro ? "✓" : diffPro > 0 ? `+${diffPro.toFixed(0)}` : diffPro.toFixed(0)}</div>
+                          <div style={{ fontSize: 8, color: colPro }}>{pctProCal.toFixed(1)}%</div>
                         </td>
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colCar }}>
                           {totales.carbos.toFixed(1)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaCar}g {okCar ? "✓" : diffCar > 0 ? `+${diffCar.toFixed(0)}` : diffCar.toFixed(0)}</div>
+                          <div style={{ fontSize: 8, color: colCar }}>{pctCarCal.toFixed(1)}%</div>
                         </td>
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colLip }}>
                           {totales.lipidos.toFixed(1)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaLip}g {okLip ? "✓" : diffLip > 0 ? `+${diffLip.toFixed(0)}` : diffLip.toFixed(0)}</div>
+                          <div style={{ fontSize: 8, color: colLip }}>{pctLipCal.toFixed(1)}%</div>
                         </td>
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colCal }}>
                           {Math.round(totales.calorias)}
@@ -1869,6 +2037,19 @@ export default function NutriPlan() {
           <button onClick={() => intentarAcceder("seguimiento", () => setScreen("seguimiento"))} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "#888", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📊 Seguimiento</button>
           <button onClick={() => { setGuiaActiva(protocolo); setGuiaOrigen("app"); setScreen("guia"); }} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,183,77,0.2)", background: "rgba(255,183,77,0.06)", color: "#FFB74D", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📖 Guía {PROTOCOLOS[protocolo]?.icon}</button>
           <button onClick={() => setScreen("resumen")} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(100,181,246,0.2)", background: "rgba(100,181,246,0.06)", color: "#64B5F6", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📋 Ver resumen completo del plan</button>
+          <button onClick={async () => {
+            setScreen("historialPlanes"); setCargandoHistorial(true); setErrorHistorial(null);
+            try {
+              const res  = await fetch(`/api/planes?userId=${encodeURIComponent(userId)}`);
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "No se pudo cargar el historial");
+              setHistorialPlanesData(Array.isArray(data.planes) ? data.planes : []);
+            } catch (err) {
+              setErrorHistorial(err.message || "Error al cargar el historial.");
+            } finally {
+              setCargandoHistorial(false);
+            }
+          }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(206,147,216,0.2)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>🗓️ Historial de planes anteriores</button>
         </div>
       </div>
     </div>
