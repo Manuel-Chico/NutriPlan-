@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       const { userId } = req.query;
       if (!userId) return res.status(400).json({ error: "Falta userId" });
 
-      const filas = await sql(
+      const filas = await sql.query(
         "SELECT * FROM registros WHERE user_id = $1 ORDER BY semana ASC",
         [userId]
       );
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Faltan datos requeridos (userId, peso, cintura)" });
       }
 
-      const filas = await sql(
+      const filas = await sql.query(
         `INSERT INTO registros (user_id, semana, peso, cintura, cuello, fecha)
          VALUES ($1, (SELECT COALESCE(MAX(semana), 0) + 1 FROM registros WHERE user_id = $1), $2, $3, $4, $5)
          RETURNING *`,
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Faltan datos requeridos (userId, id, peso, cintura)" });
       }
 
-      const filas = await sql(
+      const filas = await sql.query(
         `UPDATE registros SET peso = $1, cintura = $2, cuello = $3
          WHERE id = $4 AND user_id = $5
          RETURNING *`,
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
       const { userId, id } = req.query;
       if (!userId || !id) return res.status(400).json({ error: "Faltan userId o id" });
 
-      const filas = await sql(
+      const filas = await sql.query(
         "DELETE FROM registros WHERE id = $1 AND user_id = $2 RETURNING id",
         [id, userId]
       );
