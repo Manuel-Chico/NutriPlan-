@@ -81,6 +81,15 @@ function fechaLocalISO(d = new Date()) {
   return new Date(d.getTime() - offsetMs).toISOString().slice(0, 10);
 }
 
+// ── Formatea "2026-06-18" o "2026-06-18T00:00:00.000Z" → "18 jun 2026" ──
+function formatearFecha(fechaStr) {
+  if (!fechaStr) return fechaStr;
+  const solo = fechaStr.slice(0, 10); // toma solo YYYY-MM-DD
+  const [y, m, d] = solo.split("-").map(Number);
+  const meses = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  return `${d} ${meses[m - 1]} ${y}`;
+}
+
 // ── Calcula totales de macros/costo para un plan guardado (no es el estado en vivo) ──
 function calcularTotalesDe(seleccion, porciones, precios) {
   const all = [...(seleccion?.proteinas || []), ...(seleccion?.carbohidratos || []), ...(seleccion?.lipidos || [])];
@@ -351,7 +360,7 @@ const GUIAS_DIETA = {
 };
 
 const TIERS = {
-  gratuito: { id: "gratuito", label: "Gratuito", precio: "$0", color: "#888", icon: "🆓", features: ["Diagnóstico básico — IMC y TDEE", "Cuestionario de diagnóstico", "Base de 10 alimentos", "Plan de 1 día sin guardar", "Macros en tiempo real"], bloqueado: ["protocolos_avanzados", "ajuste_porciones", "distribucion_comidas", "seguimiento", "ia", "infusiones", "pdf"] },
+  gratuito: { id: "gratuito", label: "Gratuito", precio: "$0", color: "#888", icon: "🆓", features: ["Perfil básico — IMC y TDEE", "Cuestionario de perfil", "Base de 10 alimentos", "Plan de 1 día sin guardar", "Macros en tiempo real"], bloqueado: ["protocolos_avanzados", "ajuste_porciones", "distribucion_comidas", "seguimiento", "ia", "infusiones", "pdf"] },
   premium:  { id: "premium",  label: "Premium",  precio: "$99 MXN/mes",  color: "#FFB74D", icon: "⭐", features: ["Todo lo gratuito sin límites", "Base completa de alimentos", "Todos los protocolos (Keto, Ayuno, Keto+Ayuno)", "Ajuste de porciones y precios", "Distribución de comidas personalizada", "Seguimiento semanal con gráficas", "Recomendación con IA cada semana", "Exportar plan en PDF"], bloqueado: ["infusiones"] },
   pro:      { id: "pro",      label: "Pro",       precio: "$149 MXN/mes", color: "#CE93D8", icon: "💎", features: ["Todo lo Premium", "Módulo de infusiones con respaldo científico", "Dosis escaladas personalizadas", "Historial completo de progreso", "Análisis de tendencias con IA", "Ajuste automático de plan según progreso", "Soporte prioritario"], bloqueado: [] },
 };
@@ -961,7 +970,7 @@ export default function NutriPlan() {
   };
 
   const borrarPlanDia = async (fecha) => {
-    if (typeof window !== "undefined" && !window.confirm(`¿Borrar el plan del ${fecha}? No se puede deshacer.`)) return;
+    if (typeof window !== "undefined" && !window.confirm(`¿Borrar el plan del ${formatearFecha(fecha)}? No se puede deshacer.`)) return;
     setErrorHistorial(null);
     try {
       const res = await fetch(`/api/planes?userId=${encodeURIComponent(userId)}&fecha=${encodeURIComponent(fecha)}`, { method: "DELETE" });
@@ -1318,7 +1327,7 @@ export default function NutriPlan() {
             return (
               <div key={p.fecha} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, marginBottom: 12, overflow: "hidden" }}>
                 <button onClick={() => setFechaHistorialAbierta(abierto ? null : p.fecha)} style={{ width: "100%", padding: "14px 16px", background: "none", border: "none", color: "#fff", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{p.fecha}{esHoy && <span style={{ color: "#81C784", fontSize: 11 }}> · hoy</span>}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{formatearFecha(p.fecha)}{esHoy && <span style={{ color: "#81C784", fontSize: 11 }}> · hoy</span>}</span>
                   <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <span
                       onClick={(e) => { e.stopPropagation(); borrarPlanDia(p.fecha); }}
@@ -1446,7 +1455,7 @@ export default function NutriPlan() {
           <button onClick={() => { setPreguntaActual(PREGUNTAS.length - 1); setScreen("cuestionario"); }} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 14, marginBottom: 20, padding: 0 }}>← Regresar al cuestionario</button>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${info.color}22`, border: `2px solid ${info.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto 16px" }}>{objInfo?.icon}</div>
-            <div style={{ fontSize: 11, letterSpacing: 3, color: info.color, textTransform: "uppercase", marginBottom: 8 }}>Diagnóstico completo</div>
+            <div style={{ fontSize: 11, letterSpacing: 3, color: info.color, textTransform: "uppercase", marginBottom: 8 }}>Perfil completo</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, margin: "0 0 10px" }}>{info.titulo}</h2>
             <p style={{ color: "#888", fontSize: 14, lineHeight: 1.6, margin: 0 }}>{info.desc}</p>
           </div>
