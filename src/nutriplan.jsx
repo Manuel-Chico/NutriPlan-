@@ -360,21 +360,14 @@ const GUIAS_DIETA = {
 };
 
 const TIERS = {
-  gratuito: { id: "gratuito", label: "Gratuito", precio: "$0", color: "#888", icon: "🆓", features: ["Perfil básico — IMC y TDEE", "Cuestionario de perfil", "Base de 10 alimentos", "Plan de 1 día sin guardar", "Macros en tiempo real"], bloqueado: ["protocolos_avanzados", "ajuste_porciones", "distribucion_comidas", "seguimiento", "ia", "infusiones", "pdf"] },
-  premium:  { id: "premium",  label: "Premium",  precio: "$99 MXN/mes",  color: "#FFB74D", icon: "⭐", features: ["Todo lo gratuito sin límites", "Base completa de alimentos", "Todos los protocolos (Keto, Ayuno, Keto+Ayuno)", "Ajuste de porciones y precios", "Distribución de comidas personalizada", "Seguimiento semanal con gráficas", "Recomendación con IA cada semana", "Exportar plan en PDF"], bloqueado: ["infusiones"] },
-  pro:      { id: "pro",      label: "Pro",       precio: "$149 MXN/mes", color: "#CE93D8", icon: "💎", features: ["Todo lo Premium", "Módulo de infusiones con respaldo científico", "Dosis escaladas personalizadas", "Historial completo de progreso", "Análisis de tendencias con IA", "Ajuste automático de plan según progreso", "Soporte prioritario"], bloqueado: [] },
+  gratuito: { id: "gratuito", label: "Gratuito", precio: "$0", color: "#888", icon: "🆓", features: ["Perfil básico — IMC y TDEE", "Cuestionario de perfil", "Base de 10 alimentos", "Plan de 1 día sin guardar", "Macros en tiempo real"], bloqueado: ["protocolos_avanzados", "ajuste_porciones", "distribucion_comidas", "seguimiento", "ia", "pdf"] },
+  premium:  { id: "premium",  label: "Premium",  precio: "$99 MXN/mes",  color: "#FFB74D", icon: "⭐", features: ["Todo lo gratuito sin límites", "Base completa de alimentos", "Todos los protocolos (Keto, Ayuno, Keto+Ayuno)", "Ajuste de porciones y precios", "Distribución de comidas personalizada", "Seguimiento semanal con gráficas", "Recomendación con IA cada semana", "Exportar plan en PDF"], bloqueado: [] },
+  pro:      { id: "pro",      label: "Pro",       precio: "$149 MXN/mes", color: "#CE93D8", icon: "💎", features: ["Todo lo Premium", "Historial completo de progreso", "Análisis de tendencias con IA", "Ajuste automático de plan según progreso", "Soporte prioritario"], bloqueado: [] },
 };
 
-const FEATURE_TIER = { protocolos_avanzados: "premium", ajuste_porciones: "premium", distribucion_comidas: "premium", seguimiento: "premium", ia: "premium", pdf: "premium", infusiones: "pro" };
+const FEATURE_TIER = { protocolos_avanzados: "premium", ajuste_porciones: "premium", distribucion_comidas: "premium", seguimiento: "premium", ia: "premium", pdf: "premium" };
 
-const INFUSIONES = {
-  hipertension: { label: "Control de presión arterial", icon: "❤️", color: "#ef9a9a", objetivos: ["bajar", "quemar", "mantener"], condicion: ["condicion"], plantas: [{ nombre: "Jamaica", parte: "Cálices secos", dosis: "3–6g en infusión", dosis_inicio: "3g · semanas 1–2", dosis_completa: "6g · semana 3 en adelante", momento: "Mañana y tarde", prep: "Hervir 5 min, reposar 10 min", ciencia: "Ensayo clínico RCT (PubMed): redujo presión 15.4/9.6 mmHg en 8 semanas, comparable al captopril 25mg." }, { nombre: "Hoja de Olivo", parte: "Hojas secas", dosis: "1–2g en infusión", dosis_inicio: "1g · semanas 1–2", dosis_completa: "2g · semana 3 en adelante", momento: "Mañana", prep: "Infusión 8–10 min en agua caliente", ciencia: "Estudio 663 pacientes (PMC): reducción 13/7.1 mmHg en 2 meses con oleuropeína 100mg/día." }] },
-  glucemia:     { label: "Control de glucemia",          icon: "🩸", color: "#CE93D8", objetivos: ["bajar", "quemar", "mantener"], condicion: ["condicion"], plantas: [{ nombre: "Canela",    parte: "Corteza en rama o polvo", dosis: "1–3g en infusión", dosis_inicio: "1g · semanas 1–2", dosis_completa: "3g · semana 3 en adelante", momento: "Con las comidas principales", prep: "Hervir rama 10 min o añadir polvo al té", ciencia: "Revisión 2023 (Pharmaceutics): inhibe α-glucosidasa, reduce glucosa postprandial en T2DM y prediabetes." }, { nombre: "Fenogreco", parte: "Semillas", dosis: "4–10g en infusión", dosis_inicio: "4g · semanas 1–2", dosis_completa: "10g · semana 3 en adelante", momento: "Antes de comidas", prep: "Remojar semillas 8h, hervir 10 min", ciencia: "Meta-análisis 2023: reduce glucosa en ayuno, postprandial y HbA1c por fibra soluble." }] },
-  apetito:      { label: "Reducción de apetito",         icon: "🍃", color: "#81C784", objetivos: ["bajar", "quemar"], condicion: [], plantas: [{ nombre: "Té Verde",   parte: "Hojas", dosis: "4–9g en infusión (2–3 tazas)", dosis_inicio: "4g · semanas 1–2", dosis_completa: "9g · semana 3 en adelante", momento: "Entre comidas", prep: "Agua a 80°C, infusión 3 min", ciencia: "ECA 60 días: mejora metabolismo lipídico y glucémico, modula absorción de nutrientes y apetito." }, { nombre: "Yerba Mate", parte: "Hojas secas", dosis: "2–3g en infusión", dosis_inicio: "2g · semanas 1–2", dosis_completa: "3g · semana 3 en adelante", momento: "Mañana", prep: "Infusión 5 min en agua a 75°C", ciencia: "Investigación reciente: 3g/día durante 12 semanas redujo grasa corporal y mejoró relación cintura-cadera." }] },
-  ansiedad:     { label: "Reducción de ansiedad",        icon: "😌", color: "#64B5F6", objetivos: ["bajar", "quemar", "mantener", "masa"], condicion: [], plantas: [{ nombre: "Ashwagandha", parte: "Raíz en polvo", dosis: "300–600mg/día", dosis_inicio: "300mg · semanas 1–2", dosis_completa: "600mg · semana 3 en adelante", momento: "Noche", prep: "Disolver en agua tibia o leche vegetal", ciencia: "Meta-análisis 2024: reducción significativa de ansiedad y cortisol. Efecto completo en 4–8 semanas." }, { nombre: "Pasiflora", parte: "Hojas y flores secas", dosis: "2–4g en infusión", dosis_inicio: "2g · semanas 1–2", dosis_completa: "4g · semana 3 en adelante", momento: "Tarde o noche", prep: "Infusión 10 min, reposar tapado", ciencia: "ECA: reducción 40–60% síntomas de ansiedad. Actúa potenciando GABA en sistema nervioso central." }] },
-  energia:      { label: "Aumento de energía",           icon: "⚡", color: "#FFB74D", objetivos: ["masa", "mantener", "quemar"], condicion: [], plantas: [{ nombre: "Ginseng", parte: "Raíz seca", dosis: "1–2g en infusión", dosis_inicio: "1g · semanas 1–2", dosis_completa: "2g · semana 3 en adelante", momento: "Mañana (no después de las 2pm)", prep: "Hervir 15 min a fuego lento", ciencia: "Meta-análisis 2023 (Memorial Sloan Kettering): eficacia significativa del ginseng en manejo de fatiga." }, { nombre: "Maca", parte: "Raíz en polvo", dosis: "1.5–3g disuelto", dosis_inicio: "1.5g · semanas 1–2", dosis_completa: "3g · semana 3 en adelante", momento: "Mañana", prep: "Disolver en agua, jugo o batido", ciencia: "Meta-análisis oct. 2024 (PubMed/Scopus): beneficios en rendimiento físico en atletas con 1.5–3g/día." }] },
-  piel:         { label: "Salud de la piel",             icon: "✨", color: "#F48FB1", objetivos: ["bajar", "quemar", "mantener", "masa"], condicion: [], plantas: [{ nombre: "Cúrcuma", parte: "Rizoma en polvo", dosis: "500–1000mg de curcumina", dosis_inicio: "500mg · semanas 1–2", dosis_completa: "1000mg · semana 3 en adelante", momento: "Con comidas (añadir pimienta negra)", prep: "Disolver en agua tibia con pimienta negra para absorción", ciencia: "ECA doble ciego 2024 (CTRI India): mejora salud de piel facial, promueve síntesis de colágeno." }, { nombre: "Rosa Mosqueta", parte: "Frutos secos", dosis: "2–4g en infusión", dosis_inicio: "2g · semanas 1–2", dosis_completa: "4g · semana 3 en adelante", momento: "Mañana", prep: "Hervir 10 min, colar bien", ciencia: "Frontiers in Pharmacology 2024: mayor contenido de vitamina C entre frutos silvestres (1252mg/100g)." }] },
-};
+
 
 function getDaysLeft(startDate) {
   const ms = 14 * 24 * 60 * 60 * 1000 - (Date.now() - startDate.getTime());
@@ -534,65 +527,7 @@ function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, objetivo, setProtocolo,
   );
 }
 
-function InfusionCard({ inf }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.03)", border: `1.5px solid ${inf.color}33`, borderRadius: 14, overflow: "hidden" }}>
-      <button onClick={() => setExpanded(e => !e)} style={{ width: "100%", padding: "13px 15px", background: "none", border: "none", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 20 }}>{inf.icon}</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{inf.label}</div>
-          <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{inf.plantas.map(p => p.nombre).join(" · ")}</div>
-        </div>
-        <span style={{ color: inf.color, fontSize: 16 }}>{expanded ? "▾" : "▸"}</span>
-      </button>
-      {expanded && (
-        <div style={{ borderTop: `1px solid ${inf.color}22`, padding: "12px 15px" }}>
-          {inf.plantas.map((p, i) => (
-            <div key={i} style={{ marginBottom: i < inf.plantas.length - 1 ? 14 : 0, paddingBottom: i < inf.plantas.length - 1 ? 14 : 0, borderBottom: i < inf.plantas.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: inf.color }}>{p.nombre}</div>
-                  <div style={{ fontSize: 11, color: "#666", marginTop: 1 }}>Parte: {p.parte}</div>
-                </div>
-                <div style={{ fontSize: 10, color: "#555" }}>{p.momento}</div>
-              </div>
-              <div style={{ padding: "10px 12px", background: `${inf.color}0d`, border: `1px solid ${inf.color}30`, borderRadius: 10, marginBottom: 8 }}>
-                <div style={{ fontSize: 9, color: inf.color, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, fontWeight: 600 }}>📅 Protocolo de escalado</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 1, padding: "8px 10px", background: "rgba(255,255,255,0.05)", borderRadius: 8, borderLeft: `3px solid ${inf.color}66` }}>
-                    <div style={{ fontSize: 9, color: "#666", marginBottom: 3 }}>INICIO</div>
-                    <div style={{ fontSize: 12, color: inf.color, fontWeight: 700 }}>{p.dosis_inicio}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", color: "#444", fontSize: 16 }}>→</div>
-                  <div style={{ flex: 1, padding: "8px 10px", background: "rgba(255,255,255,0.05)", borderRadius: 8, borderLeft: `3px solid ${inf.color}` }}>
-                    <div style={{ fontSize: 9, color: "#666", marginBottom: 3 }}>DOSIS COMPLETA</div>
-                    <div style={{ fontSize: 12, color: inf.color, fontWeight: 700 }}>{p.dosis_completa}</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 10, color: "#555", marginTop: 8, lineHeight: 1.5 }}>⚠️ Si notas malestar en las primeras 2 semanas, mantén la dosis mínima o consulta a tu médico antes de subir.</div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
-                <div style={{ padding: "7px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
-                  <div style={{ fontSize: 9, color: "#666", marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>Momento</div>
-                  <div style={{ fontSize: 11, color: "#aaa" }}>{p.momento}</div>
-                </div>
-                <div style={{ padding: "7px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
-                  <div style={{ fontSize: 9, color: "#666", marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>Preparación</div>
-                  <div style={{ fontSize: 11, color: "#aaa" }}>{p.prep}</div>
-                </div>
-              </div>
-              <div style={{ padding: "8px 10px", background: "rgba(100,181,246,0.06)", border: "1px solid rgba(100,181,246,0.15)", borderRadius: 8 }}>
-                <div style={{ fontSize: 9, color: "#64B5F6", letterSpacing: 1, textTransform: "uppercase", marginBottom: 3 }}>📚 Respaldo científico</div>
-                <div style={{ fontSize: 10, color: "#777", lineHeight: 1.6 }}>{p.ciencia}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+
 
 function FoodCard({ food, cat, selected, porciones, setPorciones, precios, setPrecios, toggle }) {
   const [editMode, setEditMode] = useState(null);
@@ -609,6 +544,7 @@ function FoodCard({ food, cat, selected, porciones, setPorciones, precios, setPr
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, fontWeight: 600 }}>{food.nombre}</span>
             <span style={{ fontSize: 9, color: PREP_INFO[food.prep]?.color, background: `${PREP_INFO[food.prep]?.color}18`, borderRadius: 99, padding: "2px 6px" }}>{PREP_INFO[food.prep]?.icon} {PREP_INFO[food.prep]?.label}</span>
+            {food.prepLarga && <span style={{ fontSize: 9, color: "#FFB74D", background: "rgba(255,183,77,0.12)", borderRadius: 99, padding: "2px 6px" }}>⏱️ Prep. larga</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "#4CAF50", fontWeight: 600 }}>${costo.toFixed(1)}</span>
@@ -807,8 +743,6 @@ export default function NutriPlan() {
   const indCinturaAltura  = perfil.cintura && perfil.talla ? (+perfil.cintura / +perfil.talla) : null;
   const proteinaMeta      = perfil.peso ? Math.round(+perfil.peso * (PROTEINA_G_KG[objetivo] || 1.6)) : null;
 
-  const infusionesRecomendadas = useMemo(() => Object.values(INFUSIONES).filter(inf => inf.objetivos.includes(objetivo) || inf.condicion.includes(restriccion)), [objetivo, restriccion]);
-
   const totales = useMemo(() => {
     const all = [...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos];
     return all.reduce((acc, f) => {
@@ -1000,8 +934,8 @@ export default function NutriPlan() {
     const enriquecer = (arr, esExtra = false) => arr.map(f => {
       const bK = !esExtra && excluirKeto.includes(f.id);
       const bR = !esExtra && excluirRest.includes(f.id);
-      const bP = !esExtra && !!f.prep && !prepPermitido.includes(f.prep);
-      return { ...f, esExtra, bloqueado: bK || bR || bP, razonBloqueo: bK ? "No compatible con Keto — alto en carbos" : bR ? "Excluido por tu restricción alimentaria" : bP ? "Tiempo de preparación mayor a tu disponibilidad" : null, tipoBloqeo: bK ? "keto" : bR ? "restriccion" : bP ? "prep" : null };
+      const bP = !esExtra && !!f.prep && !prepPermitido.includes(f.prep); // solo aviso, no bloqueo
+      return { ...f, esExtra, bloqueado: bK || bR, prepLarga: bP, razonBloqueo: bK ? "No compatible con Keto — alto en carbos" : bR ? "Excluido por tu restricción alimentaria" : null, tipoBloqeo: bK ? "keto" : bR ? "restriccion" : null };
     });
     return {
       proteinas:     [...enriquecer(FOOD_DB.proteinas), ...enriquecer(foodDbExtra.proteinas, true)],
@@ -1024,8 +958,8 @@ export default function NutriPlan() {
   );
 
   const BlockedFoodCard = ({ food }) => {
-    const colorBloq = food.tipoBloqeo === "keto" ? "#ef9a9a" : food.tipoBloqeo === "restriccion" ? "#FFB74D" : "#666";
-    const iconBloq  = food.tipoBloqeo === "keto" ? "🚫" : food.tipoBloqeo === "restriccion" ? "⚠️" : "⏱️";
+    const colorBloq = food.tipoBloqeo === "keto" ? "#ef9a9a" : "#FFB74D";
+    const iconBloq  = food.tipoBloqeo === "keto" ? "🚫" : "⚠️";
     return (
       <div style={{ padding: "11px 14px", borderRadius: 14, background: "rgba(255,255,255,0.02)", border: "1.5px solid rgba(255,255,255,0.05)", opacity: 0.6 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1033,7 +967,7 @@ export default function NutriPlan() {
             <span style={{ fontSize: 14 }}>{iconBloq}</span>
             <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, fontWeight: 600, color: "#666", textDecoration: "line-through" }}>{food.nombre}</span>
           </div>
-          <span style={{ fontSize: 10, color: colorBloq, background: `${colorBloq}15`, borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" }}>{food.tipoBloqeo === "keto" ? "Keto ✗" : food.tipoBloqeo === "restriccion" ? "Restringido" : "Prep. larga"}</span>
+          <span style={{ fontSize: 10, color: colorBloq, background: `${colorBloq}15`, borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" }}>{food.tipoBloqeo === "keto" ? "Keto ✗" : "Restringido"}</span>
         </div>
         <div style={{ fontSize: 11, color: "#555", marginTop: 5, lineHeight: 1.5 }}>{food.razonBloqueo}</div>
         <div style={{ fontSize: 10, color: "#444", marginTop: 3 }}>{food.porcion}g · {food.proteinas.toFixed(1)}P · {food.carbos.toFixed(1)}C · {food.lipidos.toFixed(1)}L · {food.calorias} kcal</div>
@@ -1114,7 +1048,7 @@ export default function NutriPlan() {
 
   // ── UPGRADE ───────────────────────────────────────────────────────────
   if (screen === "upgrade") {
-    const featLabel = { protocolos_avanzados: "Protocolos Keto y Ayuno Intermitente", ajuste_porciones: "Ajuste de porciones personalizado", distribucion_comidas: "Distribución de comidas", seguimiento: "Seguimiento semanal con gráficas", ia: "Recomendaciones con Inteligencia Artificial", pdf: "Exportar plan en PDF", infusiones: "Módulo de infusiones de plantas" };
+    const featLabel = { protocolos_avanzados: "Protocolos Keto y Ayuno Intermitente", ajuste_porciones: "Ajuste de porciones personalizado", distribucion_comidas: "Distribución de comidas", seguimiento: "Seguimiento semanal con gráficas", ia: "Recomendaciones con Inteligencia Artificial", pdf: "Exportar plan en PDF" };
     const tierNecesario = FEATURE_TIER[upgradeFeature] || "premium";
     return (
       <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", padding: "0 20px 60px" }}>
@@ -2035,30 +1969,6 @@ export default function NutriPlan() {
             </div>
           );
         })()}
-
-        {/* Infusiones */}
-        {infusionesRecomendadas.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#CE93D8", letterSpacing: 1, textTransform: "uppercase" }}>🌿 Infusiones recomendadas</div>
-              {!tieneAcceso("infusiones") && <span style={{ fontSize: 10, color: "#CE93D8", background: "rgba(206,147,216,0.15)", borderRadius: 99, padding: "2px 8px" }}>💎 Pro</span>}
-            </div>
-            {tieneAcceso("infusiones") ? (
-              <div>
-                <div style={{ padding: "10px 14px", background: "rgba(239,83,80,0.07)", border: "1px solid rgba(239,83,80,0.2)", borderRadius: 10, marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: "#ef9a9a", lineHeight: 1.6 }}>⚕️ <b>Aviso médico:</b> Las infusiones son complementarias y tienen respaldo científico publicado. No sustituyen el diagnóstico ni el tratamiento médico. Consulta a tu médico antes de iniciar cualquier protocolo, especialmente si tomas medicamentos o tienes condiciones de salud.</div>
-                </div>
-                {infusionesRecomendadas.map(inf => <InfusionCard key={inf.label} inf={inf} />)}
-              </div>
-            ) : (
-              <button onClick={() => intentarAcceder("infusiones", () => {})} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "1.5px solid rgba(206,147,216,0.3)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", textAlign: "left" }}>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>💎 Módulo Pro: {infusionesRecomendadas.length} infusiones para tu objetivo</div>
-                <div style={{ fontSize: 11, color: "#666" }}>{infusionesRecomendadas.map(i => i.label).join(" · ")}</div>
-                <div style={{ fontSize: 11, color: "#CE93D8", marginTop: 6 }}>Toca para desbloquear →</div>
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Botones inferiores */}
         <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
