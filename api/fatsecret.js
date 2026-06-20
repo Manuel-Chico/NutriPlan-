@@ -10,7 +10,7 @@ function oauthSign(params, consumerSecret) {
 }
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  const { query, max_results = "20" } = req.query;
+  const { query, max_results = "50" } = req.query;
   if (!query || query.length < 2) return res.status(400).json({ error: "Query requerido" });
   const consumerKey = process.env.FATSECRET_CONSUMER_KEY;
   const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET;
@@ -25,6 +25,11 @@ export default async function handler(req, res) {
     const response = await fetch(`${BASE_URL}?${qs}`);
     const data = await response.json();
     const foods = data?.foods?.food ? (Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]) : [];
+
+    // ── Normaliza texto para comparar sin acentos ni mayúsculas ──
+    const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const palabrasQuery = norm(query).split(/\s+/).filter(Boolean);
+
     const resultados = foods.map(f => {
       const desc = f.food_description || "";
       // Con region=MX&language=es, FatSecret puede devolver la descripción en español
@@ -39,8 +44,25 @@ export default async function handler(req, res) {
       const lipidos = fat ? +fat[1] : 0; const carbos = carb ? +carb[1] : 0; const proteinas = pro ? +pro[1] : 0;
       const cat = proteinas >= carbos && proteinas >= lipidos ? "proteinas" : carbos >= lipidos ? "carbohidratos" : "lipidos";
       const nombreCompleto = f.brand_name ? `${f.food_name} (${f.brand_name})` : f.food_name;
-      return { id: `fs_${f.food_id}`, nombre: nombreCompleto, porcion, proteinas, carbos, lipidos, calorias, precio_kg: 0, prep: "moderado", cat, fuente: "fatsecret" };
-    });
+
+      // ── Score de relevancia: prioriza coincidencias reales de palabra completa ──
+      // sobre el "fuzzy match" crudo de FatSecret (que confunde "fud" con "fun", etc.)
+      const nombreNorm = norm(f.food_name);
+      const marcaNorm  = norm(f.brand_name || "");
+      let score = 0;
+      for (const p of palabrasQuery) {
+        if (marcaNorm === p) score += 100;               // marca coincide exacta ("fud" === "fud")
+        else if (marcaNorm.includes(p)) score += 40;      // marca contiene la palabra
+        if (nombreNorm.split(/\s+/).includes(p)) score += 20; // palabra completa en el nombre
+        else if (nombreNorm.includes(p)) score += 5;      // coincidencia parcial débil
+      }
+      if (!f.brand_name) score += 2; // genéricos (sin marca) se mantienen algo relevantes también
+
+      return { id: `fs_${f.food_id}`, nombre: nombreCompleto, porcion, proteinas, carbos, lipidos, calorias, precio_kg: 0, prep: "moderado", cat, fuente: "fatsecret", _score: score };
+    })
+    .sort((a, b) => b._score - a._score)
+    .map(({ _score, ...resto }) => resto); // quita el score interno antes de responder
+
     return res.status(200).json({ resultados });
   } catch (err) {
     return res.status(500).json({ error: "Error interno del servidor" });
