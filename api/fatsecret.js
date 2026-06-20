@@ -15,8 +15,6 @@ export default async function handler(req, res) {
   const consumerKey = process.env.FATSECRET_CONSUMER_KEY;
   const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET;
 
-  // region=MX + language=es: usa el dataset localizado de México (mismo que mobile.fatsecret.com.mx),
-  // así reconoce marcas mexicanas (FUD, Bafar, San Rafael, etc.) buscando en español tal cual.
   const buscarFatSecret = async (searchExpression, maxResults) => {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomBytes(8).toString("hex");
@@ -34,17 +32,32 @@ export default async function handler(req, res) {
 
   try {
     const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    // FatSecret no traduce de forma consistente: algunos productos de la MISMA marca
+    // vienen con food_name en español ("Jamón de Pavo Virginia") y otros en inglés
+    // ("Turkey Ham", "Cooked Ham"). Por cada palabra original guardamos su "grupo"
+    // de variantes válidas (la propia palabra + sinónimos en inglés).
+    const SINONIMOS = {
+      jamon: ["ham"], queso: ["cheese"], pollo: ["chicken"], res: ["beef"],
+      cerdo: ["pork"], pavo: ["turkey"], pescado: ["fish"],
+      salchicha: ["sausage", "sausages"], salchichas: ["sausage", "sausages"],
+      tocino: ["bacon"], leche: ["milk"], huevo: ["egg", "eggs"], huevos: ["egg", "eggs"],
+      arroz: ["rice"], pan: ["bread"], mantequilla: ["butter"],
+      yogurt: ["yogurt", "yoghurt"], crema: ["cream"], atun: ["tuna"],
+      camaron: ["shrimp", "shrimps"], camarones: ["shrimp", "shrimps"],
+    };
+    const gruposDeSinonimos = palabras => palabras.map(p => [p, ...(SINONIMOS[p] || [])]);
+
     const palabrasQuery = norm(query).split(/\s+/).filter(Boolean);
 
     const posibleMarca     = palabrasQuery.length > 1 ? palabrasQuery[palabrasQuery.length - 1] : null;
-    const palabrasAlimento = posibleMarca ? palabrasQuery.slice(0, -1) : palabrasQuery;
+    const gruposAlimento   = gruposDeSinonimos(posibleMarca ? palabrasQuery.slice(0, -1) : palabrasQuery);
 
     const etiquetas  = [`completa:"${query}"`];
     const busquedas  = [buscarFatSecret(query, max_results)];
     if (posibleMarca) { etiquetas.push(`marca:"${posibleMarca}"`); busquedas.push(buscarFatSecret(posibleMarca, max_results)); }
     const resultadosCrudos = await Promise.all(busquedas);
 
-    // ── Diagnóstico temporal: cuenta, errores, y nombres crudos de cada búsqueda ──
     const diagnostico = resultadosCrudos.map((r, i) => ({
       busqueda: etiquetas[i],
       itemsRecibidos: r.items.length,
@@ -78,9 +91,9 @@ export default async function handler(req, res) {
       const nombrePalabras = nombreNorm.split(/\s+/);
       const marcaNorm      = norm(f.brand_name || "");
 
-      const marcaPedidaCoincide      = posibleMarca && (marcaNorm === posibleMarca || marcaNorm.split(/\s+/).includes(posibleMarca));
-      const alimentoCoincideCompleto = palabrasAlimento.length > 0 && palabrasAlimento.every(p => nombrePalabras.includes(p));
-      const alimentoCoincideParcial  = palabrasAlimento.some(p => nombreNorm.includes(p));
+      const marcaPedidaCoincide = posibleMarca && (marcaNorm === posibleMarca || marcaNorm.split(/\s+/).includes(posibleMarca));
+      const alimentoCoincideCompleto = gruposAlimento.length > 0 && gruposAlimento.every(grupo => grupo.some(v => nombrePalabras.includes(v)));
+      const alimentoCoincideParcial  = gruposAlimento.some(grupo => grupo.some(v => nombreNorm.includes(v)));
 
       let score = 0;
       if (alimentoCoincideCompleto) score = 2;
@@ -93,9 +106,7 @@ export default async function handler(req, res) {
     if (posibleMarca) {
       const soloMarca = resultados.filter(f => f._marcaPedidaCoincide);
       const baseMarca = soloMarca.length > 0 ? soloMarca : resultados;
-
       const marcaYAlimento = baseMarca.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
-
       finalResultados = (marcaYAlimento.length > 0 ? marcaYAlimento : baseMarca)
         .sort((a, b) => b._score - a._score);
     } else {
