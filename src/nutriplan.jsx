@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 
 // ── BASE DE DATOS DE ALIMENTOS ─────────────────────────────────────────
 // ── Diccionario es↔en de alimentos comunes (para mejorar búsquedas en FatSecret) ──
@@ -770,7 +770,7 @@ export default function NutriSelf() {
     if (!query || query.length < 2) { setResultadosBusqueda([]); return; }
     setBuscando(true); setErrorBusqueda(null);
     try {
-      const res  = await fetch(`/api/fatsecret?query=${encodeURIComponent(query)}&max_results=20`);
+      const res  = await fetch(`/api/fatsecret?query=${encodeURIComponent(query)}&max_results=50`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error de búsqueda");
 
@@ -782,7 +782,7 @@ export default function NutriSelf() {
       // al alimento genérico en inglés. Ahora se combinan ambos resultados.
       const traduccion = traducirParaBusqueda(query);
       if (traduccion) {
-        const res2  = await fetch(`/api/fatsecret?query=${encodeURIComponent(traduccion)}&max_results=20`);
+        const res2  = await fetch(`/api/fatsecret?query=${encodeURIComponent(traduccion)}&max_results=50`);
         const data2 = await res2.json();
         if (res2.ok && data2.resultados?.length > 0) {
           const idsExistentes = new Set(resultados.map(r => r.id));
@@ -1643,41 +1643,56 @@ export default function NutriSelf() {
                       </tr>
                     </thead>
                     <tbody>
-                      {totalAlimentos.map((f, i) => {
-                        const porcionActual = porciones[f.id] ?? f.porcion;
-                        const factor        = porcionActual / f.porcion;
-                        const costoFila     = (costoPorcion(f, precios) / f.porcion) * porcionActual;
-                        return (
-                          <tr key={f.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                            <td style={{ padding: "8px 4px", color: "#ddd", fontWeight: 600, fontSize: 12 }}>{f.nombre}</td>
-                            <td style={{ padding: "4px 4px" }}>
-                              <input
-                                type="number"
-                                min={Math.round(f.porcion * 0.1)}
-                                max={Math.round(f.porcion * 5)}
-                                step={5}
-                                value={porcionActual}
-                                onChange={e => {
-                                  const v = +e.target.value;
-                                  if (v > 0) setPorciones(p => ({ ...p, [f.id]: v }));
-                                }}
-                                style={{
-                                  width: 52, padding: "4px 5px", background: "rgba(206,147,216,0.12)",
-                                  border: "1px solid rgba(206,147,216,0.35)", borderRadius: 7,
-                                  color: "#CE93D8", fontSize: 12, fontWeight: 700,
-                                  outline: "none", textAlign: "center",
-                                }}
-                              />
-                              <span style={{ fontSize: 9, color: "#555", marginLeft: 2 }}>g</span>
-                            </td>
-                            <td style={{ padding: "8px 4px", color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}</td>
-                            <td style={{ padding: "8px 4px", color: "#64B5F6" }}>{(f.carbos    * factor).toFixed(1)}</td>
-                            <td style={{ padding: "8px 4px", color: "#FFB74D" }}>{(f.lipidos   * factor).toFixed(1)}</td>
-                            <td style={{ padding: "8px 4px", color: "#ddd",    fontWeight: 600 }}>{Math.round(f.calorias * factor)}</td>
-                            <td style={{ padding: "8px 4px", color: "#4CAF50" }}>${costoFila.toFixed(1)}</td>
-                          </tr>
-                        );
-                      })}
+                      {(() => {
+                        const idsAsignados   = new Set(Object.values(planComidas).flat());
+                        const sinAsignarTbl  = totalAlimentos.filter(f => !idsAsignados.has(f.id));
+                        const grupos = [
+                          ...nombreComidas.map(c => ({ nombre: c, foods: totalAlimentos.filter(f => (planComidas[c] || []).includes(f.id)) })),
+                          ...(sinAsignarTbl.length ? [{ nombre: "Sin asignar a una comida", foods: sinAsignarTbl, avisar: true }] : []),
+                        ];
+                        return grupos.map((g, gi) => g.foods.length === 0 ? null : (
+                          <Fragment key={g.nombre}>
+                            <tr>
+                              <td colSpan={7} style={{ padding: "10px 4px 4px", fontSize: 10, fontWeight: 700, color: g.avisar ? "#FFB74D" : "#CE93D8", letterSpacing: 1, textTransform: "uppercase", borderTop: gi > 0 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>{g.avisar ? "⚠️ " : "🍽️ "}{g.nombre}</td>
+                            </tr>
+                            {g.foods.map(f => {
+                              const porcionActual = porciones[f.id] ?? f.porcion;
+                              const factor        = porcionActual / f.porcion;
+                              const costoFila     = (costoPorcion(f, precios) / f.porcion) * porcionActual;
+                              return (
+                                <tr key={f.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                  <td style={{ padding: "8px 4px", color: "#ddd", fontWeight: 600, fontSize: 12 }}>{f.nombre}</td>
+                                  <td style={{ padding: "4px 4px" }}>
+                                    <input
+                                      type="number"
+                                      min={Math.round(f.porcion * 0.1)}
+                                      max={Math.round(f.porcion * 5)}
+                                      step={5}
+                                      value={porcionActual}
+                                      onChange={e => {
+                                        const v = +e.target.value;
+                                        if (v > 0) setPorciones(p => ({ ...p, [f.id]: v }));
+                                      }}
+                                      style={{
+                                        width: 52, padding: "4px 5px", background: "rgba(206,147,216,0.12)",
+                                        border: "1px solid rgba(206,147,216,0.35)", borderRadius: 7,
+                                        color: "#CE93D8", fontSize: 12, fontWeight: 700,
+                                        outline: "none", textAlign: "center",
+                                      }}
+                                    />
+                                    <span style={{ fontSize: 9, color: "#555", marginLeft: 2 }}>g</span>
+                                  </td>
+                                  <td style={{ padding: "8px 4px", color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}</td>
+                                  <td style={{ padding: "8px 4px", color: "#64B5F6" }}>{(f.carbos    * factor).toFixed(1)}</td>
+                                  <td style={{ padding: "8px 4px", color: "#FFB74D" }}>{(f.lipidos   * factor).toFixed(1)}</td>
+                                  <td style={{ padding: "8px 4px", color: "#ddd",    fontWeight: 600 }}>{Math.round(f.calorias * factor)}</td>
+                                  <td style={{ padding: "8px 4px", color: "#4CAF50" }}>${costoFila.toFixed(1)}</td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        ));
+                      })()}
                       {/* Fila de totales con color dinámico */}
                       <tr style={{ borderTop: "1.5px solid rgba(255,255,255,0.12)" }}>
                         <td style={{ padding: "9px 4px", color: "#FFB74D", fontWeight: 700 }}>Total</td>
@@ -1801,6 +1816,9 @@ export default function NutriSelf() {
               </button>
             ))}
           </div>
+          {preguntaActual === PREGUNTAS.length - 1 && (
+            <button onClick={() => { setObjetivo(diagnosticarObjetivo(respuestas)); setScreen("resultado"); }} style={{ width: "100%", marginTop: 16, padding: "12px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.1)", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Brincar guía →</button>
+          )}
         </div>
       </div>
     );
@@ -1837,6 +1855,37 @@ export default function NutriSelf() {
             <span style={{ fontSize: 15 }}>🔒</span>
             <span style={{ fontSize: 12, color: "#81C784", lineHeight: 1.5 }}>Tu plan de hoy ya está cerrado y guardado. Vuelve mañana para registrar uno nuevo.</span>
           </div>
+        )}
+
+        {errorPlan && !planCerrado && (
+          <div style={{ padding: "10px 14px", background: "rgba(239,154,154,0.08)", border: "1px solid rgba(239,154,154,0.25)", borderRadius: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15 }}>⚠️</span>
+              <span style={{ fontSize: 12, color: "#ef9a9a", lineHeight: 1.5 }}>{errorPlan} Revisa tu conexión — tus cambios no se han guardado.</span>
+            </div>
+            <button disabled={guardandoPlan} onClick={async () => {
+              setGuardandoPlan(true);
+              try {
+                const hoy = fechaLocalISO();
+                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas };
+                const res = await fetch("/api/planes", {
+                  method:  "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body:    JSON.stringify({ userId, fecha: hoy, datos }),
+                });
+                if (!res.ok) throw new Error("No se pudo guardar el plan");
+                setErrorPlan(null);
+              } catch {
+                setErrorPlan("No se pudo guardar el plan automáticamente.");
+              } finally {
+                setGuardandoPlan(false);
+              }
+            }} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 99, border: "1px solid rgba(239,154,154,0.4)", background: "rgba(239,154,154,0.1)", color: "#ef9a9a", cursor: guardandoPlan ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>{guardandoPlan ? "Guardando…" : "Reintentar"}</button>
+          </div>
+        )}
+
+        {guardandoPlan && !errorPlan && !planCerrado && (
+          <div style={{ fontSize: 11, color: "#666", marginBottom: 10, textAlign: "right" }}>Guardando…</div>
         )}
 
         {/* Meta calórica */}
