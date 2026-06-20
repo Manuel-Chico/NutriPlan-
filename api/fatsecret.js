@@ -86,11 +86,15 @@ export default async function handler(req, res) {
 
     let finalResultados;
     if (posibleMarca) {
-      // Si el usuario pidió una marca, mostramos SOLO esa marca — sin mezclar otras,
-      // ordenando primero los que mejor coinciden con el alimento pedido.
+      // Paso 1: nos quedamos SOLO con la marca pedida (sin mezclar otras marcas).
       const soloMarca = resultados.filter(f => f._marcaPedidaCoincide);
-      const base = soloMarca.length > 0 ? soloMarca : resultados.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
-      finalResultados = (base.length > 0 ? base : resultados)
+      const baseMarca = soloMarca.length > 0 ? soloMarca : resultados; // si la marca no existe en absoluto, no filtramos por marca
+
+      // Paso 2: dentro de esa marca, nos quedamos SOLO con el tipo de alimento pedido
+      // (ej. solo "jamón", descartando Tocino/Queso/Salchichas de la misma marca).
+      const marcaYAlimento = baseMarca.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
+
+      finalResultados = (marcaYAlimento.length > 0 ? marcaYAlimento : baseMarca)
         .sort((a, b) => b._score - a._score);
     } else {
       // Sin marca detectada: prioriza coincidencia completa del alimento, luego parcial.
