@@ -10,31 +10,48 @@ function oauthSign(params, consumerSecret) {
 }
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  const { query, max_results = "50" } = req.query;
+  const { query, max_results = "100" } = req.query;
   if (!query || query.length < 2) return res.status(400).json({ error: "Query requerido" });
   const consumerKey = process.env.FATSECRET_CONSUMER_KEY;
   const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET;
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = crypto.randomBytes(8).toString("hex");
+
   // region=MX + language=es: usa el dataset localizado de México (mismo que mobile.fatsecret.com.mx),
   // así reconoce marcas mexicanas (FUD, Bafar, San Rafael, etc.) buscando en español tal cual.
-  const params = { method: "foods.search", search_expression: query, format: "json", max_results, region: "MX", language: "es", oauth_consumer_key: consumerKey, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
-  params.oauth_signature = oauthSign(params, consumerSecret);
-  const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
-  try {
+  const buscarFatSecret = async (searchExpression, maxResults) => {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonce = crypto.randomBytes(8).toString("hex");
+    const params = { method: "foods.search", search_expression: searchExpression, format: "json", max_results: String(maxResults), region: "MX", language: "es", oauth_consumer_key: consumerKey, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
+    params.oauth_signature = oauthSign(params, consumerSecret);
+    const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
     const response = await fetch(`${BASE_URL}?${qs}`);
     const data = await response.json();
-    const foods = data?.foods?.food ? (Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]) : [];
+    return data?.foods?.food ? (Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]) : [];
+  };
 
+  try {
     // ── Normaliza texto para comparar sin acentos ni mayúsculas ──
     const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const palabrasQuery = norm(query).split(/\s+/).filter(Boolean);
 
-    // Si la consulta trae 2+ palabras, asumimos que la(s) última(s) palabra(s)
-    // pueden ser la marca (ej. "jamon fud" → alimento="jamon", marca="fud").
-    // Esto separa la intención del usuario en dos partes para comparar cada una por su lado.
-    const posibleMarca    = palabrasQuery.length > 1 ? palabrasQuery[palabrasQuery.length - 1] : null;
+    // Si la consulta trae 2+ palabras, asumimos que la última es la marca
+    // (ej. "jamon fud" → alimento="jamon", marca="fud").
+    const posibleMarca     = palabrasQuery.length > 1 ? palabrasQuery[palabrasQuery.length - 1] : null;
     const palabrasAlimento = posibleMarca ? palabrasQuery.slice(0, -1) : palabrasQuery;
+
+    // Búsqueda principal con la query completa, y si hay marca, una segunda búsqueda
+    // solo por la marca — FatSecret a veces no trae todos los productos de una marca
+    // cuando se combina con el nombre del alimento en una sola consulta de texto libre.
+    const busquedas = [buscarFatSecret(query, max_results)];
+    if (posibleMarca) busquedas.push(buscarFatSecret(posibleMarca, max_results));
+    const resultadosCrudos = await Promise.all(busquedas);
+
+    const vistos = new Set();
+    const foods = [];
+    for (const lista of resultadosCrudos) {
+      for (const f of lista) {
+        if (!vistos.has(f.food_id)) { vistos.add(f.food_id); foods.push(f); }
+      }
+    }
 
     const resultados = foods.map(f => {
       const desc = f.food_description || "";
@@ -51,34 +68,38 @@ export default async function handler(req, res) {
       const cat = proteinas >= carbos && proteinas >= lipidos ? "proteinas" : carbos >= lipidos ? "carbohidratos" : "lipidos";
       const nombreCompleto = f.brand_name ? `${f.food_name} (${f.brand_name})` : f.food_name;
 
-      const nombreNorm    = norm(f.food_name);
+      const nombreNorm     = norm(f.food_name);
       const nombrePalabras = nombreNorm.split(/\s+/);
-      const marcaNorm     = norm(f.brand_name || "");
+      const marcaNorm      = norm(f.brand_name || "");
 
-      // ── Tier de relevancia (no acumulable — el nivel más alto que aplique gana) ──
-      // Esto evita que coincidencias parciales débiles se mezclen con coincidencias de marca real.
-      let tier = 0;
-      const marcaPedidaCoincide = posibleMarca && (marcaNorm === posibleMarca || marcaNorm.split(/\s+/).includes(posibleMarca));
+      const marcaPedidaCoincide      = posibleMarca && (marcaNorm === posibleMarca || marcaNorm.split(/\s+/).includes(posibleMarca));
       const alimentoCoincideCompleto = palabrasAlimento.length > 0 && palabrasAlimento.every(p => nombrePalabras.includes(p));
       const alimentoCoincideParcial  = palabrasAlimento.some(p => nombreNorm.includes(p));
 
-      if (marcaPedidaCoincide && alimentoCoincideCompleto)      tier = 5; // marca exacta + alimento exacto: "Jamón (Fud)"
-      else if (marcaPedidaCoincide && alimentoCoincideParcial)  tier = 4; // marca exacta + alimento parcial
-      else if (marcaPedidaCoincide)                             tier = 3; // solo la marca coincide (otro tipo de producto Fud)
-      else if (alimentoCoincideCompleto && !f.brand_name)       tier = 2; // genérico sin marca, pero nombre exacto
-      else if (alimentoCoincideCompleto)                        tier = 1; // nombre exacto, marca distinta a la pedida
-      else if (alimentoCoincideParcial)                         tier = 0.5; // coincidencia floja, pero al menos hay relación
-      else                                                      tier = 0; // sin relación real con lo buscado (match basura de FatSecret)
+      // ── Score solo para ordenar DENTRO del grupo ya filtrado por marca ──
+      let score = 0;
+      if (alimentoCoincideCompleto) score = 2;
+      else if (alimentoCoincideParcial) score = 1;
 
-      return { id: `fs_${f.food_id}`, nombre: nombreCompleto, porcion, proteinas, carbos, lipidos, calorias, precio_kg: 0, prep: "moderado", cat, fuente: "fatsecret", _tier: tier };
+      return { id: `fs_${f.food_id}`, nombre: nombreCompleto, porcion, proteinas, carbos, lipidos, calorias, precio_kg: 0, prep: "moderado", cat, fuente: "fatsecret", _marcaPedidaCoincide: marcaPedidaCoincide, _alimentoCoincideCompleto: alimentoCoincideCompleto, _alimentoCoincideParcial: alimentoCoincideParcial, _score: score };
     });
 
-    const conRelacion = resultados.filter(f => f._tier > 0);
-    // Si filtrar deja la lista vacía (ej. búsquedas muy raras donde nada hace match real),
-    // mejor mostrar los resultados crudos de FatSecret que dejar al usuario sin nada.
-    const finalResultados = (conRelacion.length > 0 ? conRelacion : resultados)
-      .sort((a, b) => b._tier - a._tier)
-      .map(({ _tier, ...resto }) => resto); // quita el tier interno antes de responder
+    let finalResultados;
+    if (posibleMarca) {
+      // Si el usuario pidió una marca, mostramos SOLO esa marca — sin mezclar otras,
+      // ordenando primero los que mejor coinciden con el alimento pedido.
+      const soloMarca = resultados.filter(f => f._marcaPedidaCoincide);
+      const base = soloMarca.length > 0 ? soloMarca : resultados.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
+      finalResultados = (base.length > 0 ? base : resultados)
+        .sort((a, b) => b._score - a._score);
+    } else {
+      // Sin marca detectada: prioriza coincidencia completa del alimento, luego parcial.
+      const conRelacion = resultados.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
+      finalResultados = (conRelacion.length > 0 ? conRelacion : resultados)
+        .sort((a, b) => b._score - a._score);
+    }
+
+    finalResultados = finalResultados.map(({ _marcaPedidaCoincide, _alimentoCoincideCompleto, _alimentoCoincideParcial, _score, ...resto }) => resto);
 
     return res.status(200).json({ resultados: finalResultados });
   } catch (err) {
