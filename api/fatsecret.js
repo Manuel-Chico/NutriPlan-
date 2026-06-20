@@ -25,9 +25,6 @@ export default async function handler(req, res) {
     const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
     const response = await fetch(`${BASE_URL}?${qs}`);
     const data = await response.json();
-    // Si FatSecret regresa un error (ej. parámetro inválido, límite de cuota), antes
-    // se ignoraba en silencio y se interpretaba como "0 resultados". Ahora lo capturamos
-    // para poder ver la causa real en vez de adivinar.
     if (data?.error) {
       return { items: [], errorInfo: { searchExpression, httpStatus: response.status, fatsecretError: data.error } };
     }
@@ -36,30 +33,25 @@ export default async function handler(req, res) {
   };
 
   try {
-    // ── Normaliza texto para comparar sin acentos ni mayúsculas ──
     const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const palabrasQuery = norm(query).split(/\s+/).filter(Boolean);
 
-    // Si la consulta trae 2+ palabras, asumimos que la última es la marca
-    // (ej. "jamon fud" → alimento="jamon", marca="fud").
     const posibleMarca     = palabrasQuery.length > 1 ? palabrasQuery[palabrasQuery.length - 1] : null;
     const palabrasAlimento = posibleMarca ? palabrasQuery.slice(0, -1) : palabrasQuery;
 
-    // Búsqueda principal con la query completa, y si hay marca, una segunda búsqueda
-    // solo por la marca — FatSecret a veces no trae todos los productos de una marca
-    // cuando se combina con el nombre del alimento en una sola consulta de texto libre.
     const etiquetas  = [`completa:"${query}"`];
     const busquedas  = [buscarFatSecret(query, max_results)];
     if (posibleMarca) { etiquetas.push(`marca:"${posibleMarca}"`); busquedas.push(buscarFatSecret(posibleMarca, max_results)); }
     const resultadosCrudos = await Promise.all(busquedas);
 
-    // ── Diagnóstico temporal: cuenta y errores de cada búsqueda por separado ──
+    // ── Diagnóstico temporal: cuenta, errores, y nombres crudos de cada búsqueda ──
     const diagnostico = resultadosCrudos.map((r, i) => ({
       busqueda: etiquetas[i],
       itemsRecibidos: r.items.length,
       totalResultsFatSecret: r.totalResults ?? null,
       httpStatus: r.httpStatus,
       error: r.errorInfo,
+      nombresCrudos: r.items.map(f => ({ food_name: f.food_name, brand_name: f.brand_name || null })),
     }));
 
     const vistos = new Set();
@@ -72,9 +64,6 @@ export default async function handler(req, res) {
 
     const resultados = foods.map(f => {
       const desc = f.food_description || "";
-      // Con region=MX&language=es, FatSecret puede devolver la descripción en español
-      // (ej. "Por 100g - Calorías: 22kcal | Grasa: 0.34g | Carbh: 3.28g | Prot: 3.09g")
-      // pero algunos alimentos genéricos siguen viniendo en inglés. Soportamos ambos formatos.
       const por = desc.match(/(?:Per|Por)\s+([\d.]+)\s*g/i);
       const cal = desc.match(/Calor[ií]as?:\s*([\d.]+)\s*kcal/i) || desc.match(/Calories:\s*([\d.]+)\s*kcal/i);
       const fat = desc.match(/(?:Fat|Grasas?|L[ií]pidos?):\s*([\d.]+)\s*g/i);
@@ -93,7 +82,6 @@ export default async function handler(req, res) {
       const alimentoCoincideCompleto = palabrasAlimento.length > 0 && palabrasAlimento.every(p => nombrePalabras.includes(p));
       const alimentoCoincideParcial  = palabrasAlimento.some(p => nombreNorm.includes(p));
 
-      // ── Score solo para ordenar DENTRO del grupo ya filtrado por marca ──
       let score = 0;
       if (alimentoCoincideCompleto) score = 2;
       else if (alimentoCoincideParcial) score = 1;
@@ -103,18 +91,14 @@ export default async function handler(req, res) {
 
     let finalResultados;
     if (posibleMarca) {
-      // Paso 1: nos quedamos SOLO con la marca pedida (sin mezclar otras marcas).
       const soloMarca = resultados.filter(f => f._marcaPedidaCoincide);
-      const baseMarca = soloMarca.length > 0 ? soloMarca : resultados; // si la marca no existe en absoluto, no filtramos por marca
+      const baseMarca = soloMarca.length > 0 ? soloMarca : resultados;
 
-      // Paso 2: dentro de esa marca, nos quedamos SOLO con el tipo de alimento pedido
-      // (ej. solo "jamón", descartando Tocino/Queso/Salchichas de la misma marca).
       const marcaYAlimento = baseMarca.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
 
       finalResultados = (marcaYAlimento.length > 0 ? marcaYAlimento : baseMarca)
         .sort((a, b) => b._score - a._score);
     } else {
-      // Sin marca detectada: prioriza coincidencia completa del alimento, luego parcial.
       const conRelacion = resultados.filter(f => f._alimentoCoincideCompleto || f._alimentoCoincideParcial);
       finalResultados = (conRelacion.length > 0 ? conRelacion : resultados)
         .sort((a, b) => b._score - a._score);
@@ -123,7 +107,7 @@ export default async function handler(req, res) {
     finalResultados = finalResultados.map(({ _marcaPedidaCoincide, _alimentoCoincideCompleto, _alimentoCoincideParcial, _score, ...resto }) => resto);
 
     const respuesta = { resultados: finalResultados };
-    if (debug === "1") respuesta._diagnostico = diagnostico; // solo aparece si se pide ?debug=1
+    if (debug === "1") respuesta._diagnostico = diagnostico;
 
     return res.status(200).json(respuesta);
   } catch (err) {
