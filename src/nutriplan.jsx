@@ -599,7 +599,7 @@ function FoodCard({ food, cat, selected, porciones, setPorciones, precios, setPr
 // ═══════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════
-export default function NutriPlan() {
+export default function NutriSelf() {
   const [screen, setScreen]         = useState("landing");
   const [step, setStep]             = useState(0);
   const [registro, setRegistro]     = useState({ nombre: "", email: "" });
@@ -640,6 +640,8 @@ export default function NutriPlan() {
   const [cargandoPlan, setCargandoPlan] = useState(true);
   const [errorPlan, setErrorPlan] = useState(null);
   const [guardandoPlan, setGuardandoPlan] = useState(false);
+  const [planCerrado, setPlanCerrado] = useState(false);
+  const [cerrandoPlan, setCerrandoPlan] = useState(false);
   const [historialPlanesData, setHistorialPlanesData] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [errorHistorial, setErrorHistorial] = useState(null);
@@ -668,6 +670,7 @@ export default function NutriPlan() {
           if (d.porciones)    setPorciones(d.porciones);
           if (d.precios)      setPrecios(d.precios);
           if (d.distComidas)  setDistComidas(d.distComidas);
+          if (d.cerrado)      setPlanCerrado(true);
         }
       } catch (err) {
         setErrorPlan("No se pudo cargar el plan guardado de hoy.");
@@ -680,7 +683,7 @@ export default function NutriPlan() {
 
   // ── Autoguardado del plan del día (con debounce) — por si se cierra la app sin avisar ──
   useEffect(() => {
-    if (!planListoRef.current || !userId) return;
+    if (!planListoRef.current || !userId || planCerrado) return;
     const hayAlgoQueGuardar = seleccion.proteinas.length || seleccion.carbohidratos.length || seleccion.lipidos.length;
     if (!hayAlgoQueGuardar) return;
     const timer = setTimeout(async () => {
@@ -753,10 +756,13 @@ export default function NutriPlan() {
 
   const pctCal = (totales.calorias / calMeta) * 100;
 
-  const toggle = (cat, food) => setSeleccion(prev => {
-    const arr = prev[cat]; const exists = arr.find(f => f.id === food.id);
-    return { ...prev, [cat]: exists ? arr.filter(f => f.id !== food.id) : [...arr, food] };
-  });
+  const toggle = (cat, food) => {
+    if (planCerrado) { if (typeof window !== "undefined") window.alert("Este plan ya está cerrado. Para registrar nuevos alimentos, espera al plan de mañana."); return; }
+    setSeleccion(prev => {
+      const arr = prev[cat]; const exists = arr.find(f => f.id === food.id);
+      return { ...prev, [cat]: exists ? arr.filter(f => f.id !== food.id) : [...arr, food] };
+    });
+  };
 
   // ── ✅ CAMBIO 1 (rev.2): buscarAlimento — fallback de traducción ya no depende de "0 resultados" ──
   const buscarAlimento = async (query) => {
@@ -980,6 +986,7 @@ export default function NutriPlan() {
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 60%,#0a0f18 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 20px 60px" }}>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
       <div style={{ textAlign: "center", paddingTop: 64, maxWidth: 420 }}>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: "#fff", marginBottom: 18 }}>NutriSelf</div>
         <div style={{ fontSize: 11, letterSpacing: 5, color: "#FFB74D", textTransform: "uppercase", marginBottom: 16 }}>Tu nutrición, tus reglas</div>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 42, lineHeight: 1.15, margin: 0 }}>Come lo que<br /><em style={{ color: "#FFB74D" }}>tú quieres</em><br />y logra tu meta.</h1>
         <p style={{ color: "#666", fontSize: 15, marginTop: 20, lineHeight: 1.7 }}>Diseña tu propia dieta eligiendo los alimentos que te gustan. La app ajusta tus macros automáticamente — según tu tipo de cuerpo y tu bolsillo.</p>
@@ -997,11 +1004,22 @@ export default function NutriPlan() {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 48, width: "100%", maxWidth: 420, background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: "28px 24px", border: "1px solid rgba(255,255,255,0.08)", textAlign: "center" }}>
-        <div style={{ fontSize: 12, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Después de la prueba</div>
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 38, fontWeight: 700 }}>$99 <span style={{ fontSize: 18, color: "#888" }}>MXN/mes</span></div>
-        <div style={{ color: "#666", fontSize: 13, marginTop: 8 }}>Acceso completo · Cancela en cualquier momento</div>
-        <button onClick={() => setScreen("register")} style={{ marginTop: 20, width: "100%", padding: "14px", borderRadius: 14, border: "1.5px solid #FFB74D", background: "transparent", color: "#FFB74D", fontWeight: 600, fontSize: 15, cursor: "pointer" }}>Empezar los 14 días gratis</button>
+      <div style={{ marginTop: 48, width: "100%", maxWidth: 420 }}>
+        <div style={{ fontSize: 12, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>Después de la prueba</div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: "22px 18px", border: "1px solid rgba(255,183,77,0.25)", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#FFB74D", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>⭐ Premium</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700 }}>$99 <span style={{ fontSize: 13, color: "#888" }}>MXN/mes</span></div>
+            <div style={{ color: "#666", fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>Acceso completo · Protocolos · Seguimiento e IA</div>
+          </div>
+          <div style={{ flex: 1, background: "rgba(206,147,216,0.06)", borderRadius: 20, padding: "22px 18px", border: "1px solid rgba(206,147,216,0.3)", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#CE93D8", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>💎 Pro</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700 }}>$149 <span style={{ fontSize: 13, color: "#888" }}>MXN/mes</span></div>
+            <div style={{ color: "#666", fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>Todo Premium · Historial e IA avanzada</div>
+          </div>
+        </div>
+        <div style={{ color: "#666", fontSize: 13, marginTop: 16, textAlign: "center" }}>Cancela en cualquier momento</div>
+        <button onClick={() => setScreen("register")} style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 14, border: "1.5px solid #FFB74D", background: "transparent", color: "#FFB74D", fontWeight: 600, fontSize: 15, cursor: "pointer" }}>Empezar los 14 días gratis</button>
       </div>
     </div>
   );
@@ -1098,7 +1116,7 @@ export default function NutriPlan() {
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
         <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button onClick={() => setScreen("app")} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
-          <div style={{ textAlign: "center" }}><div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriPlan</div><div style={{ fontSize: 14, fontWeight: 600 }}>Seguimiento</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriSelf</div><div style={{ fontSize: 14, fontWeight: 600 }}>Seguimiento</div></div>
           <div style={{ width: 24 }} />
         </div>
         <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 20px 0" }}>
@@ -1238,7 +1256,7 @@ export default function NutriPlan() {
         <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => { setScreen("app"); setFechaHistorialAbierta(null); }} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
           <div>
-            <div style={{ fontSize: 10, letterSpacing: 4, color: "#CE93D8", textTransform: "uppercase" }}>NutriPlan</div>
+            <div style={{ fontSize: 10, letterSpacing: 4, color: "#CE93D8", textTransform: "uppercase" }}>NutriSelf</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Historial de planes</div>
           </div>
         </div>
@@ -1489,7 +1507,7 @@ export default function NutriPlan() {
         <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => setScreen("app")} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
           <div>
-            <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriPlan</div>
+            <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriSelf</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Resumen del plan</div>
           </div>
         </div>
@@ -1753,7 +1771,7 @@ export default function NutriPlan() {
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriPlan</div>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriSelf</div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Hola, {registro.nombre || "usuario"} 👋</div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -1763,6 +1781,13 @@ export default function NutriPlan() {
       </div>
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 16px" }}>
+
+        {planCerrado && (
+          <div style={{ padding: "10px 14px", background: "rgba(129,199,132,0.08)", border: "1px solid rgba(129,199,132,0.25)", borderRadius: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 15 }}>🔒</span>
+            <span style={{ fontSize: 12, color: "#81C784", lineHeight: 1.5 }}>Tu plan de hoy ya está cerrado y guardado. Vuelve mañana para registrar uno nuevo.</span>
+          </div>
+        )}
 
         {/* Meta calórica */}
         <div style={{ background: "linear-gradient(135deg, rgba(255,183,77,0.08), rgba(129,199,132,0.05))", border: "1.5px solid rgba(255,183,77,0.2)", borderRadius: 18, padding: "16px 18px", marginBottom: 14 }}>
@@ -1988,6 +2013,32 @@ export default function NutriPlan() {
               setCargandoHistorial(false);
             }
           }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(206,147,216,0.2)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>🗓️ Historial de planes anteriores</button>
+          {planCerrado ? (
+            <div style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(129,199,132,0.25)", background: "rgba(129,199,132,0.07)", color: "#81C784", fontSize: 13, fontWeight: 600, textAlign: "center" }}>✓ Plan de hoy cerrado y guardado — no se puede editar</div>
+          ) : (
+            <button disabled={cerrandoPlan} onClick={async () => {
+              const hayAlgo = seleccion.proteinas.length || seleccion.carbohidratos.length || seleccion.lipidos.length;
+              if (!hayAlgo) { if (typeof window !== "undefined") window.alert("Aún no has agregado alimentos a tu plan de hoy."); return; }
+              if (typeof window !== "undefined" && !window.confirm("¿Cerrar y guardar el plan de hoy? Una vez cerrado ya NO podrás editarlo — solo el plan del día actual se puede modificar, los anteriores quedan de solo consulta. Para registrar otro plan tendrás que empezar uno nuevo.")) return;
+              setCerrandoPlan(true);
+              try {
+                const hoy = fechaLocalISO();
+                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, cerrado: true };
+                const res = await fetch("/api/planes", {
+                  method:  "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body:    JSON.stringify({ userId, fecha: hoy, datos }),
+                });
+                if (!res.ok) throw new Error("No se pudo cerrar el plan");
+                setPlanCerrado(true);
+                setFoodDbExtra({ proteinas: [], carbohidratos: [], lipidos: [] }); // limpia alimentos agregados del buscador para el próximo plan
+              } catch (err) {
+                if (typeof window !== "undefined") window.alert("No se pudo cerrar el plan. Intenta de nuevo.");
+              } finally {
+                setCerrandoPlan(false);
+              }
+            }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: cerrandoPlan ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.06)", color: cerrandoPlan ? "#555" : "#fff", fontSize: 13, cursor: cerrandoPlan ? "default" : "pointer", fontWeight: 600 }}>{cerrandoPlan ? "Cerrando…" : "🔒 Cerrar y guardar plan de hoy"}</button>
+          )}
         </div>
       </div>
     </div>
