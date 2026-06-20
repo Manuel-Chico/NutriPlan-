@@ -10,7 +10,7 @@ function oauthSign(params, consumerSecret) {
 }
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  const { query, max_results = "100" } = req.query;
+  const { query, max_results = "100", debug } = req.query;
   if (!query || query.length < 2) return res.status(400).json({ error: "Query requerido" });
   const consumerKey = process.env.FATSECRET_CONSUMER_KEY;
   const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET;
@@ -25,7 +25,14 @@ export default async function handler(req, res) {
     const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
     const response = await fetch(`${BASE_URL}?${qs}`);
     const data = await response.json();
-    return data?.foods?.food ? (Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]) : [];
+    // Si FatSecret regresa un error (ej. parámetro inválido, límite de cuota), antes
+    // se ignoraba en silencio y se interpretaba como "0 resultados". Ahora lo capturamos
+    // para poder ver la causa real en vez de adivinar.
+    if (data?.error) {
+      return { items: [], errorInfo: { searchExpression, httpStatus: response.status, fatsecretError: data.error } };
+    }
+    const items = data?.foods?.food ? (Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]) : [];
+    return { items, errorInfo: null, totalResults: data?.foods?.total_results, httpStatus: response.status };
   };
 
   try {
@@ -41,14 +48,24 @@ export default async function handler(req, res) {
     // Búsqueda principal con la query completa, y si hay marca, una segunda búsqueda
     // solo por la marca — FatSecret a veces no trae todos los productos de una marca
     // cuando se combina con el nombre del alimento en una sola consulta de texto libre.
-    const busquedas = [buscarFatSecret(query, max_results)];
-    if (posibleMarca) busquedas.push(buscarFatSecret(posibleMarca, max_results));
+    const etiquetas  = [`completa:"${query}"`];
+    const busquedas  = [buscarFatSecret(query, max_results)];
+    if (posibleMarca) { etiquetas.push(`marca:"${posibleMarca}"`); busquedas.push(buscarFatSecret(posibleMarca, max_results)); }
     const resultadosCrudos = await Promise.all(busquedas);
+
+    // ── Diagnóstico temporal: cuenta y errores de cada búsqueda por separado ──
+    const diagnostico = resultadosCrudos.map((r, i) => ({
+      busqueda: etiquetas[i],
+      itemsRecibidos: r.items.length,
+      totalResultsFatSecret: r.totalResults ?? null,
+      httpStatus: r.httpStatus,
+      error: r.errorInfo,
+    }));
 
     const vistos = new Set();
     const foods = [];
-    for (const lista of resultadosCrudos) {
-      for (const f of lista) {
+    for (const r of resultadosCrudos) {
+      for (const f of r.items) {
         if (!vistos.has(f.food_id)) { vistos.add(f.food_id); foods.push(f); }
       }
     }
@@ -105,8 +122,12 @@ export default async function handler(req, res) {
 
     finalResultados = finalResultados.map(({ _marcaPedidaCoincide, _alimentoCoincideCompleto, _alimentoCoincideParcial, _score, ...resto }) => resto);
 
-    return res.status(200).json({ resultados: finalResultados });
+    const respuesta = { resultados: finalResultados };
+    if (debug === "1") respuesta._diagnostico = diagnostico; // solo aparece si se pide ?debug=1
+
+    return res.status(200).json(respuesta);
   } catch (err) {
+    if (debug === "1") return res.status(500).json({ error: "Error interno del servidor", detalle: err.message, stack: err.stack });
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
