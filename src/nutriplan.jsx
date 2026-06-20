@@ -605,6 +605,7 @@ export default function NutriSelf() {
   const [registro, setRegistro]     = useState({ nombre: "", email: "" });
   const [trialStart, setTrialStart] = useState(null);
   const [tier, setTier]             = useState("premium");
+  const [tierIntent, setTierIntent] = useState(null); // tier elegido en landing, antes de registrarse
   const [upgradeFeature, setUpgradeFeature] = useState(null);
   const [guiaActiva, setGuiaActiva] = useState(null);
   const [guiaOrigen, setGuiaOrigen] = useState("protocolo");
@@ -922,7 +923,7 @@ export default function NutriSelf() {
     }
   };
 
-  const handleRegister = () => { if (!registro.nombre || !registro.email) return; setTrialStart(new Date()); setScreen("cuestionario"); };
+  const handleRegister = () => { if (!registro.nombre || !registro.email) return; if (tierIntent) setTier(tierIntent); setTrialStart(new Date()); setScreen("cuestionario"); };
 
   const handleRespuesta = (pregId, opId) => {
     const nuevas = { ...respuestas, [pregId]: opId }; setRespuestas(nuevas);
@@ -1006,20 +1007,42 @@ export default function NutriSelf() {
       </div>
       <div style={{ marginTop: 48, width: "100%", maxWidth: 420 }}>
         <div style={{ fontSize: 12, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>Después de la prueba</div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: "22px 18px", border: "1px solid rgba(255,183,77,0.25)", textAlign: "center" }}>
-            <div style={{ fontSize: 12, color: "#FFB74D", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>⭐ Premium</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700 }}>$99 <span style={{ fontSize: 13, color: "#888" }}>MXN/mes</span></div>
-            <div style={{ color: "#666", fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>Acceso completo · Protocolos · Seguimiento e IA</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Premium */}
+          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 20, padding: "20px 20px 18px", border: "1px solid rgba(255,183,77,0.25)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <div style={{ fontSize: 13, color: "#FFB74D", fontWeight: 700, letterSpacing: 1 }}>⭐ Premium</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700 }}>$99 <span style={{ fontSize: 12, color: "#888" }}>MXN/mes</span></div>
+            </div>
+            <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 16px" }}>
+              {TIERS.premium.features.map((f, i) => (
+                <li key={i} style={{ fontSize: 12.5, color: "#aaa", display: "flex", gap: 8, marginBottom: 6, lineHeight: 1.4 }}>
+                  <span style={{ color: "#FFB74D", flexShrink: 0 }}>✓</span>{f}
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => { setTierIntent("premium"); setScreen("register"); }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1.5px solid #FFB74D", background: "transparent", color: "#FFB74D", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Elegir Premium</button>
           </div>
-          <div style={{ flex: 1, background: "rgba(206,147,216,0.06)", borderRadius: 20, padding: "22px 18px", border: "1px solid rgba(206,147,216,0.3)", textAlign: "center" }}>
-            <div style={{ fontSize: 12, color: "#CE93D8", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>💎 Pro</div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700 }}>$149 <span style={{ fontSize: 13, color: "#888" }}>MXN/mes</span></div>
-            <div style={{ color: "#666", fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>Todo Premium · Historial e IA avanzada</div>
+
+          {/* Pro */}
+          <div style={{ background: "rgba(206,147,216,0.06)", borderRadius: 20, padding: "20px 20px 18px", border: "1px solid rgba(206,147,216,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <div style={{ fontSize: 13, color: "#CE93D8", fontWeight: 700, letterSpacing: 1 }}>💎 Pro</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700 }}>$149 <span style={{ fontSize: 12, color: "#888" }}>MXN/mes</span></div>
+            </div>
+            <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 16px" }}>
+              {TIERS.pro.features.map((f, i) => (
+                <li key={i} style={{ fontSize: 12.5, color: "#aaa", display: "flex", gap: 8, marginBottom: 6, lineHeight: 1.4 }}>
+                  <span style={{ color: "#CE93D8", flexShrink: 0 }}>✓</span>{f}
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => { setTierIntent("pro"); setScreen("register"); }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1.5px solid #CE93D8", background: "transparent", color: "#CE93D8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Elegir Pro</button>
           </div>
+
         </div>
-        <div style={{ color: "#666", fontSize: 13, marginTop: 16, textAlign: "center" }}>Cancela en cualquier momento</div>
-        <button onClick={() => setScreen("register")} style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 14, border: "1.5px solid #FFB74D", background: "transparent", color: "#FFB74D", fontWeight: 600, fontSize: 15, cursor: "pointer" }}>Empezar los 14 días gratis</button>
+        <div style={{ color: "#666", fontSize: 13, marginTop: 16, textAlign: "center" }}>14 días gratis antes de cualquier cobro · Cancela cuando quieras</div>
       </div>
     </div>
   );
@@ -1701,6 +1724,33 @@ export default function NutriSelf() {
             })}
           </div>
 
+          {planCerrado ? (
+            <div style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(129,199,132,0.25)", background: "rgba(129,199,132,0.07)", color: "#81C784", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 10 }}>✓ Plan de hoy cerrado y guardado — no se puede editar</div>
+          ) : (
+            <button disabled={cerrandoPlan} onClick={async () => {
+              const hayAlgo = seleccion.proteinas.length || seleccion.carbohidratos.length || seleccion.lipidos.length;
+              if (!hayAlgo) { if (typeof window !== "undefined") window.alert("Aún no has agregado alimentos a tu plan de hoy."); return; }
+              if (typeof window !== "undefined" && !window.confirm("¿Cerrar y guardar el plan de hoy? Una vez cerrado ya NO podrás editarlo — solo el plan del día actual se puede modificar, los anteriores quedan de solo consulta. Para registrar otro plan tendrás que empezar uno nuevo.")) return;
+              setCerrandoPlan(true);
+              try {
+                const hoy = fechaLocalISO();
+                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, cerrado: true };
+                const res = await fetch("/api/planes", {
+                  method:  "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body:    JSON.stringify({ userId, fecha: hoy, datos }),
+                });
+                if (!res.ok) throw new Error("No se pudo cerrar el plan");
+                setPlanCerrado(true);
+                setFoodDbExtra({ proteinas: [], carbohidratos: [], lipidos: [] }); // limpia alimentos agregados del buscador para el próximo plan
+              } catch (err) {
+                if (typeof window !== "undefined") window.alert("No se pudo cerrar el plan. Intenta de nuevo.");
+              } finally {
+                setCerrandoPlan(false);
+              }
+            }} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: cerrandoPlan ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.06)", color: cerrandoPlan ? "#555" : "#fff", fontSize: 14, cursor: cerrandoPlan ? "default" : "pointer", fontWeight: 700, marginBottom: 10 }}>{cerrandoPlan ? "Cerrando…" : "🔒 Cerrar y guardar plan de hoy"}</button>
+          )}
+
           <button onClick={() => setScreen("app")} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>← Volver al plan</button>
         </div>
       </div>
@@ -2013,32 +2063,6 @@ export default function NutriSelf() {
               setCargandoHistorial(false);
             }
           }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(206,147,216,0.2)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>🗓️ Historial de planes anteriores</button>
-          {planCerrado ? (
-            <div style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(129,199,132,0.25)", background: "rgba(129,199,132,0.07)", color: "#81C784", fontSize: 13, fontWeight: 600, textAlign: "center" }}>✓ Plan de hoy cerrado y guardado — no se puede editar</div>
-          ) : (
-            <button disabled={cerrandoPlan} onClick={async () => {
-              const hayAlgo = seleccion.proteinas.length || seleccion.carbohidratos.length || seleccion.lipidos.length;
-              if (!hayAlgo) { if (typeof window !== "undefined") window.alert("Aún no has agregado alimentos a tu plan de hoy."); return; }
-              if (typeof window !== "undefined" && !window.confirm("¿Cerrar y guardar el plan de hoy? Una vez cerrado ya NO podrás editarlo — solo el plan del día actual se puede modificar, los anteriores quedan de solo consulta. Para registrar otro plan tendrás que empezar uno nuevo.")) return;
-              setCerrandoPlan(true);
-              try {
-                const hoy = fechaLocalISO();
-                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, cerrado: true };
-                const res = await fetch("/api/planes", {
-                  method:  "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body:    JSON.stringify({ userId, fecha: hoy, datos }),
-                });
-                if (!res.ok) throw new Error("No se pudo cerrar el plan");
-                setPlanCerrado(true);
-                setFoodDbExtra({ proteinas: [], carbohidratos: [], lipidos: [] }); // limpia alimentos agregados del buscador para el próximo plan
-              } catch (err) {
-                if (typeof window !== "undefined") window.alert("No se pudo cerrar el plan. Intenta de nuevo.");
-              } finally {
-                setCerrandoPlan(false);
-              }
-            }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: cerrandoPlan ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.06)", color: cerrandoPlan ? "#555" : "#fff", fontSize: 13, cursor: cerrandoPlan ? "default" : "pointer", fontWeight: 600 }}>{cerrandoPlan ? "Cerrando…" : "🔒 Cerrar y guardar plan de hoy"}</button>
-          )}
         </div>
       </div>
     </div>
