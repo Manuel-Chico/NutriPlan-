@@ -19,7 +19,7 @@ const maxResultsSeguro = Math.min(Math.max(parseInt(max_results, 10) || 50, 1), 
   const buscarFatSecret = async (searchExpression, maxResults, pageNumber = 0) => {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomBytes(8).toString("hex");
-    const params = { method: "foods.search", search_expression: searchExpression, format: "json", max_results: String(maxResults), page_number: String(pageNumber), region: "MX", language: "es", oauth_consumer_key: consumerKey, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
+    const params = { method: "foods.search", search_expression: searchExpression, format: "json", max_results: String(maxResults), page_number: String(pageNumber), language: "es", oauth_consumer_key: consumerKey, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
     params.oauth_signature = oauthSign(params, consumerSecret);
     const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
     const response = await fetch(`${BASE_URL}?${qs}`);
