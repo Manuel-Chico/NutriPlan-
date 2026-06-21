@@ -10,7 +10,8 @@ function oauthSign(params, consumerSecret) {
 }
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  const { query, max_results = "100", debug } = req.query;
+  const { query, max_results = "50", debug } = req.query;
+const maxResultsSeguro = Math.min(Math.max(parseInt(max_results, 10) || 50, 1), 50);
   if (!query || query.length < 2) return res.status(400).json({ error: "Query requerido" });
   const consumerKey = process.env.FATSECRET_CONSUMER_KEY;
   const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET;
@@ -55,11 +56,11 @@ export default async function handler(req, res) {
     // PARALELO (no en secuencia), para no sumar tiempos de espera.
     const PAGINAS_MARCA = 3;
     const etiquetas  = [`completa:"${query}" pág.0`];
-    const busquedas  = [buscarFatSecret(query, max_results, 0)];
+   const busquedas  = [buscarFatSecret(query, maxResultsSeguro, 0)];
     if (posibleMarca) {
       for (let p = 0; p < PAGINAS_MARCA; p++) {
         etiquetas.push(`marca:"${posibleMarca}" pág.${p}`);
-        busquedas.push(buscarFatSecret(posibleMarca, max_results, p));
+        busquedas.push(buscarFatSecret(posibleMarca, maxResultsSeguro, p));
       }
     }
     const resultadosCrudos = await Promise.all(busquedas);
