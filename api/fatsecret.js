@@ -15,28 +15,24 @@ export default async function handler(req, res) {
   const consumerKey = process.env.FATSECRET_CONSUMER_KEY;
   const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET;
 
-  const buscarFatSecret = async (searchExpression, maxResults) => {
+  const buscarFatSecret = async (searchExpression, maxResults, pageNumber = 0) => {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomBytes(8).toString("hex");
-    const params = { method: "foods.search", search_expression: searchExpression, format: "json", max_results: String(maxResults), region: "MX", language: "es", oauth_consumer_key: consumerKey, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
+    const params = { method: "foods.search", search_expression: searchExpression, format: "json", max_results: String(maxResults), page_number: String(pageNumber), region: "MX", language: "es", oauth_consumer_key: consumerKey, oauth_nonce: nonce, oauth_signature_method: "HMAC-SHA1", oauth_timestamp: timestamp, oauth_version: "1.0" };
     params.oauth_signature = oauthSign(params, consumerSecret);
     const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
     const response = await fetch(`${BASE_URL}?${qs}`);
     const data = await response.json();
     if (data?.error) {
-      return { items: [], errorInfo: { searchExpression, httpStatus: response.status, fatsecretError: data.error } };
+      return { items: [], errorInfo: { searchExpression, pageNumber, httpStatus: response.status, fatsecretError: data.error } };
     }
     const items = data?.foods?.food ? (Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]) : [];
-    return { items, errorInfo: null, totalResults: data?.foods?.total_results, httpStatus: response.status };
+    return { items, errorInfo: null, totalResults: data?.foods?.total_results, httpStatus: response.status, pageNumber };
   };
 
   try {
     const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // FatSecret no traduce de forma consistente: algunos productos de la MISMA marca
-    // vienen con food_name en español ("Jamón de Pavo Virginia") y otros en inglés
-    // ("Turkey Ham", "Cooked Ham"). Por cada palabra original guardamos su "grupo"
-    // de variantes válidas (la propia palabra + sinónimos en inglés).
     const SINONIMOS = {
       jamon: ["ham"], queso: ["cheese"], pollo: ["chicken"], res: ["beef"],
       cerdo: ["pork"], pavo: ["turkey"], pescado: ["fish"],
@@ -53,9 +49,19 @@ export default async function handler(req, res) {
     const posibleMarca     = palabrasQuery.length > 1 ? palabrasQuery[palabrasQuery.length - 1] : null;
     const gruposAlimento   = gruposDeSinonimos(posibleMarca ? palabrasQuery.slice(0, -1) : palabrasQuery);
 
-    const etiquetas  = [`completa:"${query}"`];
-    const busquedas  = [buscarFatSecret(query, max_results)];
-    if (posibleMarca) { etiquetas.push(`marca:"${posibleMarca}"`); busquedas.push(buscarFatSecret(posibleMarca, max_results)); }
+    // Búsqueda principal con la query completa, y si hay marca, varias páginas de
+    // búsqueda solo por la marca — FatSecret no siempre trae todos los productos de
+    // una marca en una sola página, así que pedimos 3 páginas (150 resultados) EN
+    // PARALELO (no en secuencia), para no sumar tiempos de espera.
+    const PAGINAS_MARCA = 3;
+    const etiquetas  = [`completa:"${query}" pág.0`];
+    const busquedas  = [buscarFatSecret(query, max_results, 0)];
+    if (posibleMarca) {
+      for (let p = 0; p < PAGINAS_MARCA; p++) {
+        etiquetas.push(`marca:"${posibleMarca}" pág.${p}`);
+        busquedas.push(buscarFatSecret(posibleMarca, max_results, p));
+      }
+    }
     const resultadosCrudos = await Promise.all(busquedas);
 
     const diagnostico = resultadosCrudos.map((r, i) => ({
