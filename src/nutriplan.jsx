@@ -765,43 +765,51 @@ export default function NutriSelf() {
     });
   };
 
-  // ── ✅ CAMBIO 1 (rev.2): buscarAlimento — fallback de traducción ya no depende de "0 resultados" ──
+  // ── ✅ CAMBIO 3: buscarAlimento — base propia (Neon) primero, FatSecret como respaldo ──
   const buscarAlimento = async (query) => {
     if (!query || query.length < 2) { setResultadosBusqueda([]); return; }
     setBuscando(true); setErrorBusqueda(null);
     try {
-      const res  = await fetch(`/api/fatsecret?query=${encodeURIComponent(query)}&max_results=50`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error de búsqueda");
+      // 1) Buscar primero en nuestra base propia de alimentos (Neon)
+      const resPropia  = await fetch(`/api/alimentos?query=${encodeURIComponent(query)}&max_results=30`);
+      const dataPropia = await resPropia.json();
+      let resultados = resPropia.ok ? (dataPropia.resultados || []) : [];
 
-      let resultados = data.resultados || [];
+      // 2) Si hay pocos resultados propios, complementamos con FatSecret
+      //    (no reemplaza, solo agrega los que no estén ya cubiertos)
+      if (resultados.length < 8) {
+        try {
+          const resFS  = await fetch(`/api/fatsecret?query=${encodeURIComponent(query)}&max_results=50`);
+          const dataFS = await resFS.json();
+          let resultadosFS = resFS.ok ? (dataFS.resultados || []) : [];
 
-      // Si existe traducción en el diccionario, SIEMPRE buscamos también en inglés
-      // — antes solo se disparaba con 0 resultados, así que búsquedas como
-      // "papas" (que sí traen resultados, pero de baja calidad) nunca llegaban
-      // al alimento genérico en inglés. Ahora se combinan ambos resultados.
-      const traduccion = traducirParaBusqueda(query);
-      if (traduccion) {
-        const res2  = await fetch(`/api/fatsecret?query=${encodeURIComponent(traduccion)}&max_results=50`);
-        const data2 = await res2.json();
-        if (res2.ok && data2.resultados?.length > 0) {
-          const idsExistentes = new Set(resultados.map(r => r.id));
-          const nuevos = data2.resultados.filter(r => !idsExistentes.has(r.id));
-          resultados = [...resultados, ...nuevos];
+          // También probamos la traducción al inglés para mejorar cobertura en FatSecret
+          const traduccion = traducirParaBusqueda(query);
+          if (traduccion) {
+            const resFS2  = await fetch(`/api/fatsecret?query=${encodeURIComponent(traduccion)}&max_results=50`);
+            const dataFS2 = await resFS2.json();
+            if (resFS2.ok && dataFS2.resultados?.length > 0) {
+              const idsFS = new Set(resultadosFS.map(r => r.id));
+              resultadosFS = [...resultadosFS, ...dataFS2.resultados.filter(r => !idsFS.has(r.id))];
+            }
+          }
+
+          const conTraduccionFS = resultadosFS.map(f => ({
+            ...f,
+            nombre_es: traducirNombreResultado(f.nombre),
+            _generico: esResultadoGenerico(f.nombre, traduccion),
+            fuente_datos: "fatsecret",
+          }));
+          conTraduccionFS.sort((a, b) => (a._generico === b._generico ? 0 : a._generico ? -1 : 1));
+
+          resultados = [...resultados, ...conTraduccionFS];
+        } catch {
+          // Si FatSecret falla, seguimos solo con lo que ya tengamos de la base propia
         }
       }
 
       if (resultados.length > 0) {
-        // Anota nombre en español (si lo reconocemos) y marca cuáles son
-        // alimentos genéricos vs. platillos compuestos
-        const conTraduccion = resultados.map(f => ({
-          ...f,
-          nombre_es: traducirNombreResultado(f.nombre),
-          _generico: esResultadoGenerico(f.nombre, traduccion),
-        }));
-        // Genéricos primero, platillos compuestos después (orden estable dentro de cada grupo)
-        conTraduccion.sort((a, b) => (a._generico === b._generico ? 0 : a._generico ? -1 : 1));
-        setResultadosBusqueda(conTraduccion.slice(0, 20));
+        setResultadosBusqueda(resultados.slice(0, 25));
       } else {
         setResultadosBusqueda([]);
         setErrorBusqueda("Sin resultados para esa búsqueda.");
