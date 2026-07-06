@@ -1935,7 +1935,7 @@ export default function NutriSelf() {
           )}
         </div>
 
-        {/* Búsqueda FatSecret */}
+        {/* Búsqueda de alimentos */}
         <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 16px", marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>🔍 Buscar alimento</div>
           <div style={{ display: "flex", gap: 8 }}>
