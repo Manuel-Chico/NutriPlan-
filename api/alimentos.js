@@ -51,10 +51,28 @@ export default async function handler(req, res) {
     const likeContiene = `%${q}%`;
     const likeEmpieza = `${q}%`;
 
-    // Buscamos coincidencias en nombre O marca, y calculamos un "score" de
-    // relevancia para poder ordenar: coincidencia exacta > empieza con > contiene.
-    // Esto prioriza los resultados más relevantes de NUESTRA base antes de
-    // siquiera pensar en pedirle algo a FatSecret.
+    // Conectores que no aportan significado para buscar un alimento —
+    // si el usuario los omite ("jamón pavo" en vez de "jamón de pavo"),
+    // no debe afectar el resultado.
+    const CONECTORES = new Set(["de", "del", "la", "el", "los", "las", "y", "con", "sin", "a"]);
+    const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const todasLasPalabras = norm(q).split(/\s+/).filter(Boolean);
+    const palabrasSignificativas = todasLasPalabras.filter(p => !CONECTORES.has(p));
+    // Si al quitar conectores no queda nada (ej. búsqueda = "de"), usamos las
+    // palabras originales para no dejar la búsqueda vacía.
+    const palabras = palabrasSignificativas.length > 0 ? palabrasSignificativas : todasLasPalabras;
+
+    // Buscamos alimentos donde CADA palabra de la búsqueda aparezca en algún
+    // lado del nombre o la marca (sin importar el orden). Así "jamón pavo"
+    // SÍ encuentra "Jamón de pavo Virginia" aunque falte la palabra "de" y el
+    // orden no sea idéntico — antes exigíamos la frase completa tal cual,
+    // lo que hacía fallar búsquedas poco específicas y disparaba el
+    // fallback a FatSecret sin necesidad.
+    //
+    // El score de prioridad se calcula aparte, sobre la frase completa
+    // original, para desempatar: coincidencia exacta > empieza con > el
+    // resto de coincidencias por palabras sueltas.
     const filas = await sql`
       SELECT
         id, nombre, marca, categoria, subcategoria, fuente,
@@ -64,14 +82,17 @@ export default async function handler(req, res) {
           WHEN lower(nombre) = lower(${q}) THEN 3
           WHEN lower(nombre) LIKE lower(${likeEmpieza}) THEN 2
           WHEN lower(nombre) LIKE lower(${likeContiene}) THEN 1
-          WHEN lower(marca) LIKE lower(${likeContiene}) THEN 1
           ELSE 0
         END AS score
       FROM alimentos
-      WHERE
-        lower(nombre) LIKE lower(${likeContiene})
-        OR lower(marca) LIKE lower(${likeContiene})
-      ORDER BY score DESC, nombre ASC
+      WHERE (
+        SELECT bool_and(
+          translate(lower(nombre), 'áéíóúñ', 'aeioun') LIKE '%' || palabra || '%'
+          OR translate(lower(coalesce(marca, '')), 'áéíóúñ', 'aeioun') LIKE '%' || palabra || '%'
+        )
+        FROM unnest(${palabras}::text[]) AS palabra
+      )
+      ORDER BY score DESC, nombre ASC, id ASC
       LIMIT ${maxResultsSeguro}
     `;
 
