@@ -671,6 +671,7 @@ export default function NutriSelf() {
           if (d.porciones)    setPorciones(d.porciones);
           if (d.precios)      setPrecios(d.precios);
           if (d.distComidas)  setDistComidas(d.distComidas);
+          if (d.planComidas)  setPlanComidas(d.planComidas);
           if (d.cerrado)      setPlanCerrado(true);
         }
       } catch (err) {
@@ -691,7 +692,7 @@ export default function NutriSelf() {
       setGuardandoPlan(true);
       try {
         const hoy = fechaLocalISO();
-        const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas };
+        const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, planComidas };
         const res = await fetch("/api/planes", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
@@ -706,7 +707,7 @@ export default function NutriSelf() {
       }
     }, 1500);
     return () => clearTimeout(timer);
-  }, [userId, protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas]);
+  }, [userId, protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, planComidas]);
 
   // ── Cargar registros guardados de este dispositivo al abrir la app ──
   useEffect(() => {
@@ -1757,7 +1758,7 @@ export default function NutriSelf() {
               setCerrandoPlan(true);
               try {
                 const hoy = fechaLocalISO();
-                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, cerrado: true };
+                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, planComidas, cerrado: true };
                 const res = await fetch("/api/planes", {
                   method:  "POST",
                   headers: { "Content-Type": "application/json" },
@@ -1875,7 +1876,7 @@ export default function NutriSelf() {
               setGuardandoPlan(true);
               try {
                 const hoy = fechaLocalISO();
-                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas };
+                const datos = { protocolo, objetivo, numComidas, tiempoPrep, restriccion, seleccion, porciones, precios, distComidas, planComidas };
                 const res = await fetch("/api/planes", {
                   method:  "POST",
                   headers: { "Content-Type": "application/json" },
