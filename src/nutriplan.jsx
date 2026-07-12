@@ -624,6 +624,15 @@ export default function NutriSelf() {
   const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
   const [buscando, setBuscando]     = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState(null);
+  const [manualNombre, setManualNombre] = useState("");
+  const [manualCat, setManualCat] = useState("proteinas");
+  const [manualPorcion, setManualPorcion] = useState("");
+  const [manualProteinas, setManualProteinas] = useState("");
+  const [manualCarbos, setManualCarbos] = useState("");
+  const [manualLipidos, setManualLipidos] = useState("");
+  const [manualCalorias, setManualCalorias] = useState("");
+  const [guardandoManual, setGuardandoManual] = useState(false);
+  const [errorManual, setErrorManual] = useState(null);
   const [registros, setRegistros]   = useState([]);
   const [cargandoRegistros, setCargandoRegistros] = useState(true);
   const [errorRegistros, setErrorRegistros] = useState(null);
@@ -820,6 +829,42 @@ export default function NutriSelf() {
       setResultadosBusqueda([]);
     } finally {
       setBuscando(false);
+    }
+  };
+
+  // ── Guardar un alimento capturado manualmente (no encontrado en el buscador) ──
+  const guardarAlimentoManual = async () => {
+    if (!manualNombre.trim() || !manualPorcion || !manualProteinas || !manualCarbos || !manualLipidos) {
+      setErrorManual("Completa el nombre, la porción y los 3 macros.");
+      return;
+    }
+    setGuardandoManual(true); setErrorManual(null);
+    try {
+      const res = await fetch("/api/alimentos", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          nombre: manualNombre.trim(),
+          categoria: manualCat,
+          porcion_g: +manualPorcion,
+          proteinas: +manualProteinas,
+          carbohidratos: +manualCarbos,
+          lipidos: +manualLipidos,
+          calorias: manualCalorias !== "" ? +manualCalorias : null,
+          fuente: "manual",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo guardar el alimento");
+      const nuevo = { ...data.alimento, esExtra: true, prep: "rapido", precio_kg: 0 };
+      const cat = nuevo.cat;
+      setFoodDbExtra(prev => ({ ...prev, [cat]: [...prev[cat], nuevo] }));
+      setSeleccion(prev => ({ ...prev, [cat]: [...prev[cat], nuevo] }));
+      setManualNombre(""); setManualPorcion(""); setManualProteinas(""); setManualCarbos(""); setManualLipidos(""); setManualCalorias("");
+    } catch (err) {
+      setErrorManual(err.message || "Error al guardar. Intenta de nuevo.");
+    } finally {
+      setGuardandoManual(false);
     }
   };
 
@@ -1978,6 +2023,42 @@ export default function NutriSelf() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Captura manual de alimento — para cuando no aparece en el buscador */}
+        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "14px 16px", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>✏️ ¿No lo encontraste? Agrégalo tú mismo</div>
+          <input
+            type="text"
+            placeholder="Nombre del alimento (ej: Jamón FUD Virginia)"
+            value={manualNombre}
+            onChange={e => setManualNombre(e.target.value)}
+            style={{ width: "100%", padding: "10px 12px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 10, color: "#fff", fontSize: 14, outline: "none", marginBottom: 8, boxSizing: "border-box" }}
+          />
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            {[["proteinas", "🥩 Proteína", "#81C784"], ["carbohidratos", "🌾 Carbo", "#64B5F6"], ["lipidos", "🥑 Lípido", "#FFB74D"]].map(([id, label, color]) => (
+              <button key={id} onClick={() => setManualCat(id)} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: manualCat === id ? 700 : 400, background: manualCat === id ? color : "rgba(255,255,255,0.06)", color: manualCat === id ? "#000" : "#888" }}>{label}</button>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+            {[["Porción (g)", manualPorcion, setManualPorcion], ["Calorías (opcional)", manualCalorias, setManualCalorias]].map(([label, val, setter], i) => (
+              <div key={i}>
+                <label style={{ fontSize: 9, color: "#666", letterSpacing: 1, textTransform: "uppercase" }}>{label}</label>
+                <input type="number" value={val} onChange={e => setter(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+            {[["Proteína (g)", manualProteinas, setManualProteinas, "#81C784"], ["Carbos (g)", manualCarbos, setManualCarbos, "#64B5F6"], ["Lípidos (g)", manualLipidos, setManualLipidos, "#FFB74D"]].map(([label, val, setter, color], i) => (
+              <div key={i}>
+                <label style={{ fontSize: 9, color, letterSpacing: 1, textTransform: "uppercase" }}>{label}</label>
+                <input type="number" value={val} onChange={e => setter(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.11)", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+          {errorManual && <div style={{ fontSize: 12, color: "#ef9a9a", marginBottom: 8 }}>⚠️ {errorManual}</div>}
+          <button onClick={guardarAlimentoManual} disabled={guardandoManual} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: guardandoManual ? "#222" : "#FFB74D", color: guardandoManual ? "#555" : "#000", fontWeight: 700, fontSize: 13, cursor: guardandoManual ? "default" : "pointer" }}>{guardandoManual ? "Guardando…" : "Guardar y agregar al plan"}</button>
+          <div style={{ fontSize: 10, color: "#555", marginTop: 6, lineHeight: 1.5 }}>Se guarda en tu base de alimentos — la próxima vez podrás encontrarlo con el buscador.</div>
         </div>
 
         {/* Selección de alimentos por categoría */}
