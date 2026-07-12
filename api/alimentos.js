@@ -1,5 +1,5 @@
 // /api/alimentos.js
-// — Ruta serverless para buscar en nuestra base propia de alimentos (Neon) —
+// — Ruta serverless para buscar (GET) y guardar (POST) en nuestra base propia de alimentos (Neon) —
 // Requiere: npm install @neondatabase/serverless
 // Requiere: variable de entorno DATABASE_URL (la inyecta Vercel automáticamente
 // al instalar la integración de Neon desde el Marketplace de Vercel)
@@ -34,13 +34,12 @@ function aFormatoFrontend(fila) {
     precio_kg: 0,
     prep: "moderado",
     cat,
-    fuente: "propia",
+    fuente: fila.fuente || "propia",
   };
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
+// ── GET: buscar alimentos ────────────────────────────────────────────
+async function handleGet(req, res) {
   const { query, max_results = "30" } = req.query;
   const maxResultsSeguro = Math.min(Math.max(parseInt(max_results, 10) || 30, 1), 50);
 
@@ -102,4 +101,76 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: "Error interno del servidor", detalle: err.message });
   }
+}
+
+// ── POST: guardar un alimento capturado manualmente por el usuario ───
+async function handlePost(req, res) {
+  const {
+    nombre,
+    categoria,
+    porcion_g,
+    proteinas,
+    carbohidratos,
+    lipidos,
+    calorias,
+    marca,
+    fuente,
+  } = req.body || {};
+
+  // Validación de campos requeridos
+  if (!nombre || typeof nombre !== "string" || !nombre.trim()) {
+    return res.status(400).json({ error: "El nombre del alimento es requerido" });
+  }
+  if (!["proteinas", "carbohidratos", "lipidos"].includes(categoria)) {
+    return res.status(400).json({ error: "Categoría inválida — debe ser proteinas, carbohidratos o lipidos" });
+  }
+  const porcionNum = Number(porcion_g);
+  const proteinasNum = Number(proteinas);
+  const carbosNum = Number(carbohidratos);
+  const lipidosNum = Number(lipidos);
+  if (!porcionNum || porcionNum <= 0) {
+    return res.status(400).json({ error: "La porción (g) debe ser un número mayor a 0" });
+  }
+  if ([proteinasNum, carbosNum, lipidosNum].some(v => Number.isNaN(v) || v < 0)) {
+    return res.status(400).json({ error: "Proteína, carbohidratos y lípidos deben ser números válidos" });
+  }
+
+  // Si no se especifican calorías, se calculan a partir de los macros (4/4/9 kcal por gramo)
+  const caloriasNum = (calorias !== undefined && calorias !== null && calorias !== "")
+    ? Number(calorias)
+    : proteinasNum * 4 + carbosNum * 4 + lipidosNum * 9;
+
+  if (Number.isNaN(caloriasNum) || caloriasNum < 0) {
+    return res.status(400).json({ error: "Las calorías deben ser un número válido" });
+  }
+
+  try {
+    const filas = await sql`
+      INSERT INTO alimentos (nombre, marca, categoria, fuente, base_g, porcion_g, calorias, proteinas, carbohidratos, lipidos)
+      VALUES (
+        ${nombre.trim()},
+        ${marca || null},
+        ${categoria},
+        ${fuente || "manual"},
+        ${porcionNum},
+        ${porcionNum},
+        ${caloriasNum},
+        ${proteinasNum},
+        ${carbosNum},
+        ${lipidosNum}
+      )
+      RETURNING id, nombre, marca, categoria, base_g, porcion_g, calorias, proteinas, carbohidratos, lipidos, fuente
+    `;
+
+    const alimento = aFormatoFrontend(filas[0]);
+    return res.status(201).json({ alimento });
+  } catch (err) {
+    return res.status(500).json({ error: "No se pudo guardar el alimento", detalle: err.message });
+  }
+}
+
+export default async function handler(req, res) {
+  if (req.method === "GET")  return handleGet(req, res);
+  if (req.method === "POST") return handlePost(req, res);
+  return res.status(405).json({ error: "Method not allowed" });
 }
