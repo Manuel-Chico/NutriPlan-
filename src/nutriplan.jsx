@@ -1847,9 +1847,12 @@ export default function NutriSelf() {
 
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriSelf</div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Hola, {registro.nombre || "usuario"} 👋</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setScreen("protocolo")} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22, padding: 0, lineHeight: 1 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: 4, color: "#FFB74D", textTransform: "uppercase" }}>NutriSelf</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>Hola, {registro.nombre || "usuario"} 👋</div>
+          </div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>Trial: {daysLeft}d restantes</div>
