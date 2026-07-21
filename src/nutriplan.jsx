@@ -315,7 +315,7 @@ const GUIAS_DIETA = {
     resumen: "Déficit calórico leve combinado con proteína elevada. La prioridad no es bajar la báscula lo más rápido posible, sino perder grasa minimizando la pérdida de músculo.",
     mecanismo: "Un déficit moderado (8–10%) junto con proteína alta (hasta 2 g/kg) maximiza la oxidación de grasa mientras preserva masa magra — a diferencia de un déficit agresivo enfocado solo en el peso total.",
     macros: "40% proteína · 40% carbos · 20% grasas",
-    ciencia: "Longland et al., Am J Clin Nutr 2016: proteína alta (2.4g/kg) durante déficit calórico combinado con entrenamiento de fuerza preserva e incluso aumenta masa muscular mientras se pierde grasa, frente a dietas con menor proteína.",
+    ciencia: "Longland et al., Am J Clin Nutr 2016: proteína alta (2.4g/kg) durante déficit calórico combinado con entrenamiento de fuerza preserva e incluso aumenta masa muscular mientras se pierde grasa, frente a dietas con menor proteína. · Wycherley et al., Am J Clin Nutr 2012 (meta-análisis de dietas altas en proteína vs. estándar en restricción calórica, respalda la distribución de macros). · Murphy & Koehler 2021 (un déficit mayor a 500 kcal/día anula la ganancia de masa magra, respaldando un déficit calórico leve de 8-10%).",
     timeline: [{ dia: "Semana 1–2", titulo: "Ajuste", desc: "El cuerpo se adapta al déficit leve. Energía y rendimiento se mantienen estables — no debería sentirse como una dieta agresiva.", color: "#FFB74D" }, { dia: "Semana 3–4", titulo: "Recomposición visible", desc: "Cambios en composición corporal antes que en el peso de la báscula. La ropa empieza a sentirse diferente.", color: "#81C784" }, { dia: "Mes 2–3", titulo: "Definición", desc: "Pérdida de grasa sostenida con fuerza estable o en aumento si el entrenamiento es consistente.", color: "#64B5F6" }, { dia: "Mes 3+", titulo: "Mantenimiento del progreso", desc: "Reevaluar el déficit si hay meseta — la proteína alta facilita ajustar calorías sin perder músculo.", color: "#CE93D8" }],
     ketoFlu: { normales: ["Hambre leve entre comidas si el déficit se nota", "Ligera fatiga en entrenamientos intensos los primeros días", "Necesidad de planear comidas para llegar a la proteína meta"], parar: ["Pérdida de fuerza notoria en el gimnasio semana tras semana", "Pérdida de peso mayor a 1% del peso corporal por semana sostenida", "Fatiga persistente o ánimo bajo constante"], remedios: ["Priorizar proteína en cada comida antes que otros macros", "Ajustar el déficit a 8–10%, no más, si hay caída de rendimiento", "Distribuir la proteína en 3–4 tomas para mejor síntesis muscular"] },
     recargas: { descripcion: "No requiere recargas formales, pero un día de mantenimiento calórico cada 1–2 semanas ayuda con la adherencia y el rendimiento en entrenamientos pesados.", porSomatotipo: [{ tipo: "Ectomorfo 🦴", protocolo: "Déficit mínimo", recargas: "1 día/sem a TDEE", carbosMax: "TDEE − 8% · 42% carbos" }, { tipo: "Mesomorfo 💪", protocolo: "Déficit leve estándar", recargas: "Opcional cada 10–14 días", carbosMax: "TDEE − 10% · 40% carbos" }, { tipo: "Endomorfo 🛡️", protocolo: "Déficit leve sostenido", recargas: "No necesarias", carbosMax: "TDEE − 12% · 35% carbos" }] },
@@ -1681,6 +1681,19 @@ export default function NutriSelf() {
             const pctProCal = totales.calorias > 0 ? (totales.proteinas * 4 / totales.calorias) * 100 : 0;
             const pctCarCal = totales.calorias > 0 ? (totales.carbos    * 4 / totales.calorias) * 100 : 0;
             const pctLipCal = totales.calorias > 0 ? (totales.lipidos   * 9 / totales.calorias) * 100 : 0;
+            // Color por puntos porcentuales vs. el objetivo (±3pp) — verde preciso, azul bajo, rojo alto
+            const metaPctPro = Math.round(dist.p * 100);
+            const metaPctCar = Math.round(dist.c * 100);
+            const metaPctLip = Math.round(dist.l * 100);
+            const colorPorPuntos = (actual, meta, tolerancia) => {
+              const diff = actual - meta;
+              if (Math.abs(diff) <= tolerancia) return "#81C784"; // verde — preciso
+              return diff < 0 ? "#64B5F6" : "#ef5350"; // azul bajo · rojo alto
+            };
+            const colPctPro = colorPorPuntos(pctProCal, metaPctPro, 3);
+            const colPctCar = colorPorPuntos(pctCarCal, metaPctCar, 3);
+            const colPctLip = colorPorPuntos(pctLipCal, metaPctLip, 3);
+            const colCalAbs = colorPorPuntos(totales.calorias, metaCal, 50);
             return (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -1754,19 +1767,19 @@ export default function NutriSelf() {
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colPro }}>
                           {totales.proteinas.toFixed(1)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaPro}g {okPro ? "✓" : diffPro > 0 ? `+${diffPro.toFixed(0)}` : diffPro.toFixed(0)}</div>
-                          <div style={{ fontSize: 8, color: colPro }}>{pctProCal.toFixed(1)}%</div>
+                          <div style={{ fontSize: 8, color: colPctPro, fontWeight: 700 }}>{pctProCal.toFixed(1)}%</div>
                         </td>
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colCar }}>
                           {totales.carbos.toFixed(1)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaCar}g {okCar ? "✓" : diffCar > 0 ? `+${diffCar.toFixed(0)}` : diffCar.toFixed(0)}</div>
-                          <div style={{ fontSize: 8, color: colCar }}>{pctCarCal.toFixed(1)}%</div>
+                          <div style={{ fontSize: 8, color: colPctCar, fontWeight: 700 }}>{pctCarCal.toFixed(1)}%</div>
                         </td>
                         <td style={{ padding: "9px 4px", fontWeight: 700, color: colLip }}>
                           {totales.lipidos.toFixed(1)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaLip}g {okLip ? "✓" : diffLip > 0 ? `+${diffLip.toFixed(0)}` : diffLip.toFixed(0)}</div>
-                          <div style={{ fontSize: 8, color: colLip }}>{pctLipCal.toFixed(1)}%</div>
+                          <div style={{ fontSize: 8, color: colPctLip, fontWeight: 700 }}>{pctLipCal.toFixed(1)}%</div>
                         </td>
-                        <td style={{ padding: "9px 4px", fontWeight: 700, color: colCal }}>
+                        <td style={{ padding: "9px 4px", fontWeight: 700, color: colCalAbs }}>
                           {Math.round(totales.calorias)}
                           <div style={{ fontSize: 8, color: "#444" }}>/{metaCal} {okCal ? "✓" : diffCal > 0 ? `+${Math.round(diffCal)}` : Math.round(diffCal)}</div>
                         </td>
@@ -1782,15 +1795,21 @@ export default function NutriSelf() {
           {/* Horario de comidas */}
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: "#64B5F6", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>⏰ Horario de comidas</div>
-            {nombreComidas.map((comida, i) => {
-              const factor = 1 / nombreComidas.length;
-              return (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < nombreComidas.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                  <div style={{ fontSize: 13, color: "#ddd" }}>{comida}</div>
-                  <div style={{ fontSize: 12, color: "#888" }}>{Math.round(totales.calorias * factor)} kcal</div>
+            {(() => {
+              const idsAsignados = new Set(Object.values(planComidas).flat());
+              const sinAsignarHorario = totalAlimentos.filter(f => !idsAsignados.has(f.id));
+              const calcCal = (foods) => foods.reduce((acc, f) => acc + (f.calorias * ((porciones[f.id] ?? f.porcion) / f.porcion)), 0);
+              const filas = [
+                ...nombreComidas.map(comida => ({ nombre: comida, cal: calcCal(totalAlimentos.filter(f => (planComidas[comida] || []).includes(f.id))) })),
+                ...(sinAsignarHorario.length ? [{ nombre: "⚠️ Sin asignar", cal: calcCal(sinAsignarHorario), aviso: true }] : []),
+              ];
+              return filas.map((f, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < filas.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                  <div style={{ fontSize: 13, color: f.aviso ? "#FFB74D" : "#ddd" }}>{f.nombre}</div>
+                  <div style={{ fontSize: 12, color: f.aviso ? "#FFB74D" : "#888" }}>{Math.round(f.cal)} kcal</div>
                 </div>
-              );
-            })}
+              ));
+            })()}
           </div>
 
           {planCerrado ? (
@@ -1819,6 +1838,20 @@ export default function NutriSelf() {
               }
             }} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: cerrandoPlan ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.06)", color: cerrandoPlan ? "#555" : "#fff", fontSize: 14, cursor: cerrandoPlan ? "default" : "pointer", fontWeight: 700, marginBottom: 10 }}>{cerrandoPlan ? "Cerrando…" : "🔒 Cerrar y guardar plan de hoy"}</button>
           )}
+
+          <button onClick={async () => {
+            setScreen("historialPlanes"); setCargandoHistorial(true); setErrorHistorial(null);
+            try {
+              const res  = await fetch(`/api/planes?userId=${encodeURIComponent(userId)}`);
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "No se pudo cargar el historial");
+              setHistorialPlanesData(Array.isArray(data.planes) ? data.planes : []);
+            } catch (err) {
+              setErrorHistorial(err.message || "Error al cargar el historial.");
+            } finally {
+              setCargandoHistorial(false);
+            }
+          }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(206,147,216,0.2)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", fontWeight: 600, marginBottom: 10 }}>🗓️ Historial de planes</button>
 
           <button onClick={() => setScreen("app")} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>← Volver al plan</button>
         </div>
@@ -2182,6 +2215,136 @@ export default function NutriSelf() {
               <div style={{ padding: "8px 10px", background: "rgba(255,183,77,0.06)", border: "1px solid rgba(255,183,77,0.15)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, color: "#888" }}>Total del día</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>{Math.round(totales.calorias)} kcal · ${totales.costo.toFixed(0)} MXN</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Alimentos del plan — tabla editable duplicada aquí para dar los acabados finales durante la planificación (misma tabla que en Resumen) */}
+        {(() => {
+          const totalAlimentosApp = [...seleccion.proteinas, ...seleccion.carbohidratos, ...seleccion.lipidos];
+          if (totalAlimentosApp.length === 0) return null;
+          const metaPro = Math.round(calMeta * dist.p / 4);
+          const metaCar = Math.round(calMeta * dist.c / 4);
+          const metaLip = Math.round(calMeta * dist.l / 9);
+          const metaCal = calMeta;
+          const diffPro = totales.proteinas - metaPro;
+          const diffCar = totales.carbos    - metaCar;
+          const diffLip = totales.lipidos   - metaLip;
+          const diffCal = totales.calorias  - metaCal;
+          const okPro   = Math.abs(diffPro / metaPro) < 0.03;
+          const okCar   = Math.abs(diffCar / metaCar) < 0.03;
+          const okLip   = Math.abs(diffLip / metaLip) < 0.03;
+          const okCal   = Math.abs(diffCal / metaCal) < 0.03;
+          const colPro  = okPro ? "#81C784" : diffPro > 0 ? "#ef5350" : "#FFB74D";
+          const colCar  = okCar ? "#64B5F6" : diffCar > 0 ? "#ef5350" : "#FFB74D";
+          const colLip  = okLip ? "#FFB74D" : diffLip > 0 ? "#ef5350" : "#64B5F6";
+          const colCalGramos = okCal ? "#81C784" : diffCal > 0 ? "#ef5350" : "#FFB74D";
+          const pctProCal = totales.calorias > 0 ? (totales.proteinas * 4 / totales.calorias) * 100 : 0;
+          const pctCarCal = totales.calorias > 0 ? (totales.carbos    * 4 / totales.calorias) * 100 : 0;
+          const pctLipCal = totales.calorias > 0 ? (totales.lipidos   * 9 / totales.calorias) * 100 : 0;
+          const metaPctPro = Math.round(dist.p * 100);
+          const metaPctCar = Math.round(dist.c * 100);
+          const metaPctLip = Math.round(dist.l * 100);
+          const colorPorPuntos = (actual, meta, tolerancia) => {
+            const diff = actual - meta;
+            if (Math.abs(diff) <= tolerancia) return "#81C784";
+            return diff < 0 ? "#64B5F6" : "#ef5350";
+          };
+          const colPctPro = colorPorPuntos(pctProCal, metaPctPro, 3);
+          const colPctCar = colorPorPuntos(pctCarCal, metaPctCar, 3);
+          const colPctLip = colorPorPuntos(pctLipCal, metaPctLip, 3);
+          const colCalAbs = colorPorPuntos(totales.calorias, metaCal, 50);
+          const idsAsignados   = new Set(Object.values(planComidas).flat());
+          const sinAsignarTbl  = totalAlimentosApp.filter(f => !idsAsignados.has(f.id));
+          const grupos = [
+            ...nombreComidas.map(c => ({ nombre: c, foods: totalAlimentosApp.filter(f => (planComidas[c] || []).includes(f.id)) })),
+            ...(sinAsignarTbl.length ? [{ nombre: "Sin asignar a una comida", foods: sinAsignarTbl, avisar: true }] : []),
+          ];
+          return (
+            <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: "#CE93D8", letterSpacing: 2, textTransform: "uppercase", fontWeight: 600 }}>🍽️ Alimentos del plan — acabados finales</div>
+                <div style={{ fontSize: 9, color: "#555" }}>toca la porción para editar</div>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                      {["Alimento", "Porción", "Pro", "Car", "Lip", "kcal", "Costo"].map(h => (
+                        <td key={h} style={{ padding: "5px 4px", fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>{h}</td>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grupos.map((g, gi) => g.foods.length === 0 ? null : (
+                      <Fragment key={g.nombre}>
+                        <tr>
+                          <td colSpan={7} style={{ padding: "10px 4px 4px", fontSize: 10, fontWeight: 700, color: g.avisar ? "#FFB74D" : "#CE93D8", letterSpacing: 1, textTransform: "uppercase", borderTop: gi > 0 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>{g.avisar ? "⚠️ " : "🍽️ "}{g.nombre}</td>
+                        </tr>
+                        {g.foods.map(f => {
+                          const porcionActual = porciones[f.id] ?? f.porcion;
+                          const factor        = porcionActual / f.porcion;
+                          const costoFila     = (costoPorcion(f, precios) / f.porcion) * porcionActual;
+                          return (
+                            <tr key={f.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                              <td style={{ padding: "8px 4px", color: "#ddd", fontWeight: 600, fontSize: 12 }}>{f.nombre}</td>
+                              <td style={{ padding: "4px 4px" }}>
+                                <input
+                                  type="number"
+                                  min={Math.round(f.porcion * 0.1)}
+                                  max={Math.round(f.porcion * 5)}
+                                  step={5}
+                                  value={porcionActual}
+                                  onChange={e => {
+                                    const v = +e.target.value;
+                                    if (v > 0) setPorciones(p => ({ ...p, [f.id]: v }));
+                                  }}
+                                  style={{
+                                    width: 52, padding: "4px 5px", background: "rgba(206,147,216,0.12)",
+                                    border: "1px solid rgba(206,147,216,0.35)", borderRadius: 7,
+                                    color: "#CE93D8", fontSize: 12, fontWeight: 700,
+                                    outline: "none", textAlign: "center",
+                                  }}
+                                />
+                                <span style={{ fontSize: 9, color: "#555", marginLeft: 2 }}>g</span>
+                              </td>
+                              <td style={{ padding: "8px 4px", color: "#81C784" }}>{(f.proteinas * factor).toFixed(1)}</td>
+                              <td style={{ padding: "8px 4px", color: "#64B5F6" }}>{(f.carbos    * factor).toFixed(1)}</td>
+                              <td style={{ padding: "8px 4px", color: "#FFB74D" }}>{(f.lipidos   * factor).toFixed(1)}</td>
+                              <td style={{ padding: "8px 4px", color: "#ddd",    fontWeight: 600 }}>{Math.round(f.calorias * factor)}</td>
+                              <td style={{ padding: "8px 4px", color: "#4CAF50" }}>${costoFila.toFixed(1)}</td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
+                    <tr style={{ borderTop: "1.5px solid rgba(255,255,255,0.12)" }}>
+                      <td style={{ padding: "9px 4px", color: "#FFB74D", fontWeight: 700 }}>Total</td>
+                      <td></td>
+                      <td style={{ padding: "9px 4px", fontWeight: 700, color: colPro }}>
+                        {totales.proteinas.toFixed(1)}
+                        <div style={{ fontSize: 8, color: "#444" }}>/{metaPro}g {okPro ? "✓" : diffPro > 0 ? `+${diffPro.toFixed(0)}` : diffPro.toFixed(0)}</div>
+                        <div style={{ fontSize: 8, color: colPctPro, fontWeight: 700 }}>{pctProCal.toFixed(1)}%</div>
+                      </td>
+                      <td style={{ padding: "9px 4px", fontWeight: 700, color: colCar }}>
+                        {totales.carbos.toFixed(1)}
+                        <div style={{ fontSize: 8, color: "#444" }}>/{metaCar}g {okCar ? "✓" : diffCar > 0 ? `+${diffCar.toFixed(0)}` : diffCar.toFixed(0)}</div>
+                        <div style={{ fontSize: 8, color: colPctCar, fontWeight: 700 }}>{pctCarCal.toFixed(1)}%</div>
+                      </td>
+                      <td style={{ padding: "9px 4px", fontWeight: 700, color: colLip }}>
+                        {totales.lipidos.toFixed(1)}
+                        <div style={{ fontSize: 8, color: "#444" }}>/{metaLip}g {okLip ? "✓" : diffLip > 0 ? `+${diffLip.toFixed(0)}` : diffLip.toFixed(0)}</div>
+                        <div style={{ fontSize: 8, color: colPctLip, fontWeight: 700 }}>{pctLipCal.toFixed(1)}%</div>
+                      </td>
+                      <td style={{ padding: "9px 4px", fontWeight: 700, color: colCalAbs }}>
+                        {Math.round(totales.calorias)}
+                        <div style={{ fontSize: 8, color: "#444" }}>/{metaCal} {okCal ? "✓" : diffCal > 0 ? `+${Math.round(diffCal)}` : Math.round(diffCal)}</div>
+                      </td>
+                      <td style={{ padding: "9px 4px", color: "#4CAF50", fontWeight: 700 }}>${totales.costo.toFixed(0)}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           );
