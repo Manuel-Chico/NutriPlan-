@@ -2355,19 +2355,6 @@ export default function NutriSelf() {
           <button onClick={() => intentarAcceder("seguimiento", () => setScreen("seguimiento"))} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "#888", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📊 Seguimiento</button>
           <button onClick={() => { setGuiaActiva(protocolo); setGuiaOrigen("app"); setScreen("guia"); }} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,183,77,0.2)", background: "rgba(255,183,77,0.06)", color: "#FFB74D", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📖 Guía {PROTOCOLOS[protocolo]?.icon}</button>
           <button onClick={() => setScreen("resumen")} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(100,181,246,0.2)", background: "rgba(100,181,246,0.06)", color: "#64B5F6", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📋 Ver resumen completo del plan</button>
-          <button onClick={async () => {
-            setScreen("historialPlanes"); setCargandoHistorial(true); setErrorHistorial(null);
-            try {
-              const res  = await fetch(`/api/planes?userId=${encodeURIComponent(userId)}`);
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || "No se pudo cargar el historial");
-              setHistorialPlanesData(Array.isArray(data.planes) ? data.planes : []);
-            } catch (err) {
-              setErrorHistorial(err.message || "Error al cargar el historial.");
-            } finally {
-              setCargandoHistorial(false);
-            }
-          }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(206,147,216,0.2)", background: "rgba(206,147,216,0.06)", color: "#CE93D8", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>🗓️ Historial de planes anteriores</button>
         </div>
       </div>
     </div>
