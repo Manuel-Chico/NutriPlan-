@@ -527,37 +527,54 @@ function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, objetivo, setProtocolo,
   );
 }
 
-// ── Ilustración esquemática propia (SVG) para la guía de medidas ──────
-// Figura de línea minimalista y original — no reproduce ninguna imagen de terceros.
-function IlustracionMedidas({ sexo = "M" }) {
-  const linea = (y, color, label) => (
+// ── Ilustración propia estilo pictograma (como los íconos de baños) ───
+// Figuras sólidas originales (no reproducen ninguna imagen de terceros) —
+// mujer en rosa con símbolo ♀, hombre en azul con símbolo ♂.
+function IlustracionMedidas() {
+  const lineaCompleta = (y, color) => (
     <g>
-      <line x1="20" y1={y} x2="100" y2={y} stroke={color} strokeWidth="2.5" strokeDasharray="4,3" />
-      <circle cx="100" cy={y} r="3" fill={color} />
+      <line x1="6" y1={y} x2="184" y2={y} stroke={color} strokeWidth="2.5" strokeDasharray="5,3" />
+      <circle cx="184" cy={y} r="3.5" fill={color} />
+      <circle cx="6" cy={y} r="3.5" fill={color} />
+    </g>
+  );
+  const lineaParcial = (x1, x2, y, color) => (
+    <g>
+      <line x1={x1} y1={y} x2={x2} y2={y} stroke={color} strokeWidth="2.5" strokeDasharray="5,3" />
+      <circle cx={x2} cy={y} r="3.5" fill={color} />
+      <circle cx={x1} cy={y} r="3.5" fill={color} />
     </g>
   );
   return (
-    <svg viewBox="0 0 120 220" style={{ width: "100%", maxWidth: 180, margin: "0 auto", display: "block" }}>
-      {/* Cabeza */}
-      <circle cx="60" cy="22" r="16" fill="none" stroke="#888" strokeWidth="2.5" />
-      {/* Cuello */}
-      <line x1="60" y1="38" x2="60" y2="46" stroke="#888" strokeWidth="2.5" />
-      {/* Torso */}
-      <path d="M 40 46 Q 60 40 80 46 L 86 120 Q 60 130 34 120 Z" fill="none" stroke="#888" strokeWidth="2.5" />
-      {/* Caderas / piernas */}
-      {sexo === "F" ? (
-        <path d="M 34 120 Q 60 138 86 120 L 78 150 L 66 150 L 60 130 L 54 150 L 42 150 Z" fill="none" stroke="#888" strokeWidth="2.5" />
-      ) : (
-        <path d="M 34 120 L 40 150 L 54 150 L 60 128 L 66 150 L 80 150 L 86 120" fill="none" stroke="#888" strokeWidth="2.5" />
-      )}
-      {/* Piernas */}
-      <line x1="52" y1="150" x2="48" y2="205" stroke="#888" strokeWidth="2.5" />
-      <line x1="68" y1="150" x2="72" y2="205" stroke="#888" strokeWidth="2.5" />
+    <svg viewBox="0 0 190 150" style={{ width: "100%", maxWidth: 260, margin: "0 auto", display: "block" }}>
+      {/* Símbolo ♀ */}
+      <g stroke="#F48FB1" strokeWidth="2.2" fill="none">
+        <circle cx="20" cy="9" r="5.5" />
+        <line x1="20" y1="14.5" x2="20" y2="22" />
+        <line x1="15" y1="19" x2="25" y2="19" />
+      </g>
+      {/* Figura femenina (rosa) */}
+      <circle cx="45" cy="19" r="11" fill="#F48FB1" />
+      <polygon points="35,31 55,31 68,86 22,86" fill="#F48FB1" />
+      <rect x="27" y="86" width="9" height="36" rx="2" fill="#F48FB1" />
+      <rect x="54" y="86" width="9" height="36" rx="2" fill="#F48FB1" />
 
-      {/* Marcas de medición */}
-      {linea(42, "#FFB74D", "Cuello")}
-      {linea(85, "#64B5F6", "Cintura")}
-      {sexo === "F" && linea(123, "#81C784", "Cadera")}
+      {/* Símbolo ♂ */}
+      <g stroke="#64B5F6" strokeWidth="2.2" fill="none">
+        <circle cx="150" cy="12" r="5.5" />
+        <line x1="154" y1="8" x2="160" y2="2" />
+        <polyline points="155,2 160,2 160,7" fill="none" />
+      </g>
+      {/* Figura masculina (azul) */}
+      <circle cx="135" cy="19" r="11" fill="#64B5F6" />
+      <rect x="119" y="31" width="32" height="55" rx="3" fill="#64B5F6" />
+      <rect x="121" y="86" width="9" height="36" rx="2" fill="#64B5F6" />
+      <rect x="140" y="86" width="9" height="36" rx="2" fill="#64B5F6" />
+
+      {/* Líneas de medición */}
+      {lineaCompleta(33, "#FFB74D")}
+      {lineaCompleta(60, "#CE93D8")}
+      {lineaParcial(18, 72, 84, "#81C784")}
     </svg>
   );
 }
@@ -568,7 +585,7 @@ function IlustracionMedidas({ sexo = "M" }) {
 function GuiaMedidas({ setScreen }) {
   const puntos = [
     { titulo: "Cuello", color: "#FFB74D", desc: "Mide la circunferencia justo en la base del cuello, donde termina con los hombros." },
-    { titulo: "Cintura", color: "#64B5F6", desc: "Mide arriba del ombligo, justo debajo de la última costilla — sin apretar la cinta." },
+    { titulo: "Cintura", color: "#CE93D8", desc: "Mide arriba del ombligo, justo debajo de la última costilla — sin apretar la cinta." },
     { titulo: "Cadera (solo mujeres)", color: "#81C784", desc: "Mide sobre la parte más ancha de los glúteos, rodeando toda la cadera." },
   ];
   return (
@@ -584,7 +601,7 @@ function GuiaMedidas({ setScreen }) {
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 20px" }}>
         <p style={{ color: "#888", fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Para calcular tu porcentaje de grasa corporal necesitamos algunas medidas. Tómalas con una cinta métrica flexible, sin ropa gruesa, y relajado — sin contraer el abdomen.</p>
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "20px 16px", marginBottom: 20 }}>
-          <IlustracionMedidas sexo="F" />
+          <IlustracionMedidas />
         </div>
         {puntos.map((p, i) => (
           <div key={i} style={{ padding: "14px 16px", background: `${p.color}10`, border: `1.5px solid ${p.color}33`, borderRadius: 14, marginBottom: 12 }}>
@@ -596,7 +613,7 @@ function GuiaMedidas({ setScreen }) {
           </div>
         ))}
         <button onClick={() => setScreen("resultado")} style={{ width: "100%", marginTop: 12, padding: "15px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>Continuar a mi perfil →</button>
-        <button onClick={() => setScreen("resultado")} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Omitir por ahora</button>
+        <button onClick={() => setScreen("resultado")} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Saltar guía →</button>
       </div>
     </div>
   );
@@ -1196,6 +1213,7 @@ export default function NutriSelf() {
   };
 
   const handleRegister = () => { if (!registro.nombre || !registro.email) return; if (tierIntent) setTier(tierIntent); setTrialStart(new Date()); setScreen("cuestionario"); };
+  const handleSkipCuestionario = () => { if (!registro.nombre || !registro.email) return; if (tierIntent) setTier(tierIntent); setTrialStart(new Date()); setScreen("resultado"); };
 
   const handleRespuesta = (pregId, opId) => {
     const nuevas = { ...respuestas, [pregId]: opId }; setRespuestas(nuevas);
@@ -1352,6 +1370,7 @@ export default function NutriSelf() {
           <input type="email" placeholder="tucorreo@email.com" value={registro.email} onChange={e => setRegistro(r => ({ ...r, email: e.target.value }))} style={inputStyle} />
         </div>
         <button onClick={handleRegister} disabled={!registro.nombre || !registro.email} style={{ width: "100%", padding: "16px", borderRadius: 14, border: "none", background: registro.nombre && registro.email ? "#FFB74D" : "#222", color: registro.nombre && registro.email ? "#000" : "#555", fontWeight: 700, fontSize: 16, cursor: registro.nombre && registro.email ? "pointer" : "default", transition: "all 0.2s" }}>Empezar mi prueba gratuita →</button>
+        <button onClick={handleSkipCuestionario} disabled={!registro.nombre || !registro.email} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "none", background: "transparent", color: registro.nombre && registro.email ? "#666" : "#333", fontSize: 13, cursor: registro.nombre && registro.email ? "pointer" : "default" }}>Ya conozco la app — saltar cuestionario →</button>
         <div style={{ fontSize: 11, color: "#444", textAlign: "center", marginTop: 12 }}>Sin cargos automáticos.</div>
       </div>
     </div>
@@ -1688,6 +1707,7 @@ export default function NutriSelf() {
             <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>💡 <span style={{ color: "#888" }}>El número de comidas al día no afecta el metabolismo — está demostrado científicamente. Lo que importa es el total calórico. Tú decides cuántas comidas hacer según tu tiempo.</span></div>
           </div>
           <button onClick={() => { setGuiaPlanOrigen("protocolo"); setScreen("guiaPlan"); }} style={{ marginTop: 20, width: "100%", padding: "15px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>Armar mi plan con {PROTOCOLOS[protocolo]?.label} →</button>
+          <button onClick={() => setScreen("app")} style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.1)", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Ya sé cómo funciona — saltar guía →</button>
         </div>
       </div>
     );
@@ -2126,7 +2146,7 @@ export default function NutriSelf() {
             ))}
           </div>
           {preguntaActual === PREGUNTAS.length - 1 && (
-            <button onClick={() => { setObjetivo(diagnosticarObjetivo(respuestas)); setScreen("resultado"); }} style={{ width: "100%", marginTop: 16, padding: "12px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.1)", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Brincar guía →</button>
+            <button onClick={() => { setObjetivo(diagnosticarObjetivo(respuestas)); setScreen("resultado"); }} style={{ width: "100%", marginTop: 16, padding: "12px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.1)", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Saltar guía →</button>
           )}
         </div>
       </div>
