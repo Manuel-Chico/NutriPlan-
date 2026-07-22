@@ -527,7 +527,224 @@ function GuiaDieta({ guiaActiva, guiaOrigen, somatotipo, objetivo, setProtocolo,
   );
 }
 
+// ── Ilustración esquemática propia (SVG) para la guía de medidas ──────
+// Figura de línea minimalista y original — no reproduce ninguna imagen de terceros.
+function IlustracionMedidas({ sexo = "M" }) {
+  const linea = (y, color, label) => (
+    <g>
+      <line x1="20" y1={y} x2="100" y2={y} stroke={color} strokeWidth="2.5" strokeDasharray="4,3" />
+      <circle cx="100" cy={y} r="3" fill={color} />
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 120 220" style={{ width: "100%", maxWidth: 180, margin: "0 auto", display: "block" }}>
+      {/* Cabeza */}
+      <circle cx="60" cy="22" r="16" fill="none" stroke="#888" strokeWidth="2.5" />
+      {/* Cuello */}
+      <line x1="60" y1="38" x2="60" y2="46" stroke="#888" strokeWidth="2.5" />
+      {/* Torso */}
+      <path d="M 40 46 Q 60 40 80 46 L 86 120 Q 60 130 34 120 Z" fill="none" stroke="#888" strokeWidth="2.5" />
+      {/* Caderas / piernas */}
+      {sexo === "F" ? (
+        <path d="M 34 120 Q 60 138 86 120 L 78 150 L 66 150 L 60 130 L 54 150 L 42 150 Z" fill="none" stroke="#888" strokeWidth="2.5" />
+      ) : (
+        <path d="M 34 120 L 40 150 L 54 150 L 60 128 L 66 150 L 80 150 L 86 120" fill="none" stroke="#888" strokeWidth="2.5" />
+      )}
+      {/* Piernas */}
+      <line x1="52" y1="150" x2="48" y2="205" stroke="#888" strokeWidth="2.5" />
+      <line x1="68" y1="150" x2="72" y2="205" stroke="#888" strokeWidth="2.5" />
 
+      {/* Marcas de medición */}
+      {linea(42, "#FFB74D", "Cuello")}
+      {linea(85, "#64B5F6", "Cintura")}
+      {sexo === "F" && linea(123, "#81C784", "Cadera")}
+    </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GUÍA DE MEDIDAS — se muestra antes de "Perfil completo"
+// ═══════════════════════════════════════════════════════════════════════
+function GuiaMedidas({ setScreen }) {
+  const puntos = [
+    { titulo: "Cuello", color: "#FFB74D", desc: "Mide la circunferencia justo en la base del cuello, donde termina con los hombros." },
+    { titulo: "Cintura", color: "#64B5F6", desc: "Mide arriba del ombligo, justo debajo de la última costilla — sin apretar la cinta." },
+    { titulo: "Cadera (solo mujeres)", color: "#81C784", desc: "Mide sobre la parte más ancha de los glúteos, rodeando toda la cadera." },
+  ];
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 60 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+      <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button onClick={() => setScreen("cuestionario")} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#FFB74D", textTransform: "uppercase" }}>Antes de continuar</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>📏 Guía de medidas</div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 20px" }}>
+        <p style={{ color: "#888", fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Para calcular tu porcentaje de grasa corporal necesitamos algunas medidas. Tómalas con una cinta métrica flexible, sin ropa gruesa, y relajado — sin contraer el abdomen.</p>
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "20px 16px", marginBottom: 20 }}>
+          <IlustracionMedidas sexo="F" />
+        </div>
+        {puntos.map((p, i) => (
+          <div key={i} style={{ padding: "14px 16px", background: `${p.color}10`, border: `1.5px solid ${p.color}33`, borderRadius: 14, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: p.color }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{p.titulo}</span>
+            </div>
+            <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>{p.desc}</div>
+          </div>
+        ))}
+        <button onClick={() => setScreen("resultado")} style={{ width: "100%", marginTop: 12, padding: "15px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>Continuar a mi perfil →</button>
+        <button onClick={() => setScreen("resultado")} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #333", background: "transparent", color: "#666", fontSize: 13, cursor: "pointer" }}>Omitir por ahora</button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GUÍA DE ELABORACIÓN DEL PLAN — se muestra antes de entrar a armar el plan
+// ═══════════════════════════════════════════════════════════════════════
+function GuiaPlanElaboracion({ setScreen, guiaOrigen = "protocolo" }) {
+  const [seccion, setSeccion] = useState("meta");
+  const secciones = [
+    { id: "meta", label: "Meta diaria" },
+    { id: "buscar", label: "Buscar alimentos" },
+    { id: "comidas", label: "Por comida" },
+    { id: "final", label: "Tabla final" },
+    { id: "botones", label: "Botones" },
+  ];
+  const PreviewCard = ({ children }) => (
+    <div style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 14px", marginTop: 10, marginBottom: 14 }}>{children}</div>
+  );
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0a0f18 0%,#111827 100%)", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 80 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+      <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button onClick={() => setScreen(guiaOrigen)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 22 }}>‹</button>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#64B5F6", textTransform: "uppercase" }}>Antes de armar tu plan</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>📖 Cómo funciona</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, padding: "0 20px", overflowX: "auto", marginBottom: 20 }}>
+        {secciones.map(s => (
+          <button key={s.id} onClick={() => setSeccion(s.id)} style={{ padding: "7px 14px", borderRadius: 99, border: "none", cursor: "pointer", whiteSpace: "nowrap", background: seccion === s.id ? "#64B5F6" : "rgba(255,255,255,0.07)", color: seccion === s.id ? "#000" : "#888", fontWeight: seccion === s.id ? 700 : 400, fontSize: 12 }}>{s.label}</button>
+        ))}
+      </div>
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px" }}>
+        {seccion === "meta" && (
+          <div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, margin: "0 0 8px" }}>Tabla "Meta diaria"</h3>
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7 }}>Aquí ves las calorías necesarias para tu objetivo. Cada alimento que agregues mueve la barra de calorías, los gramos de cada macronutriente y sus porcentajes — todo se actualiza al instante.</p>
+            <PreviewCard>
+              <div style={{ fontSize: 9, color: "#FFB74D", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Meta diaria</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>1502 <span style={{ fontSize: 11, color: "#555", fontWeight: 400 }}>/ 2000 kcal</span></div>
+              <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 6, margin: "8px 0" }}><div style={{ width: "75%", background: "#81C784", height: "100%", borderRadius: 99 }} /></div>
+              <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
+                <span style={{ color: "#81C784" }}>🥩 54.3g</span><span style={{ color: "#64B5F6" }}>🌾 183.1g</span><span style={{ color: "#FFB74D" }}>🥑 68.8g</span>
+              </div>
+            </PreviewCard>
+          </div>
+        )}
+        {seccion === "buscar" && (
+          <div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, margin: "0 0 8px" }}>🔍 Buscar alimento</h3>
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7 }}>Busca cualquier alimento que quieras, de distintas marcas — desde embutidos, lácteos y cárnicos hasta cereales, legumbres, dulces, bebidas y platillos preparados.</p>
+            <PreviewCard>
+              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>🔍 Buscar alimento</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ flex: 1, padding: "8px 10px", background: "rgba(255,255,255,0.06)", borderRadius: 8, color: "#555", fontSize: 12 }}>Ej: pollo, avena...</div>
+                <div style={{ padding: "8px 14px", background: "#FFB74D", borderRadius: 8, color: "#000", fontSize: 12, fontWeight: 700 }}>Buscar</div>
+              </div>
+            </PreviewCard>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, margin: "0 0 8px" }}>✏️ ¿No lo encontraste?</h3>
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7 }}>Agrégalo tú mismo: coloca la porción de la etiqueta (o la que tú definas) junto con los gramos de proteína, carbohidratos, lípidos y las calorías de esa porción.</p>
+            <PreviewCard>
+              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>✏️ Agrégalo tú mismo</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                {[["🥩 Proteína", "#81C784"], ["🌾 Carbo", "#666"], ["🥑 Lípido", "#666"]].map(([l, c], i) => (
+                  <div key={i} style={{ flex: 1, padding: "5px 0", textAlign: "center", borderRadius: 6, background: i === 0 ? c : "rgba(255,255,255,0.06)", color: i === 0 ? "#000" : "#888", fontSize: 10, fontWeight: i === 0 ? 700 : 400 }}>{l}</div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: "#555" }}>Porción · Calorías · Proteína · Carbos · Lípidos</div>
+            </PreviewCard>
+          </div>
+        )}
+        {seccion === "comidas" && (
+          <div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, margin: "0 0 8px" }}>Listas por Proteína, Carbohidrato y Lípido</h3>
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7 }}>Cada alimento que elijas se agrega a la lista de su macronutriente principal. Al seleccionarlo se abre un control para ajustar la cantidad — al moverlo, las calorías y macros cambian en tiempo real.</p>
+            <PreviewCard>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Tocino ⚡ &lt;10 min</div>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 8 }}>70g · 25.9Pro · 1.0Car · 25.9Lip · 379 kcal</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                <div style={{ padding: "4px 10px", background: "#FFB74D", borderRadius: 99, fontSize: 10, color: "#000", fontWeight: 700 }}>⚖️ Porción</div>
+                <div style={{ padding: "4px 10px", background: "rgba(255,255,255,0.07)", borderRadius: 99, fontSize: 10, color: "#888" }}>💰 Precio</div>
+              </div>
+              <div style={{ fontSize: 10, color: "#666" }}>Un botón de "Precio" te permite anotar el costo por kg o litro de ese alimento, para calcular el gasto total de tu plan.</div>
+            </PreviewCard>
+            <div style={{ padding: "10px 12px", background: "rgba(100,181,246,0.07)", border: "1px solid rgba(100,181,246,0.2)", borderRadius: 10, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "#64B5F6", lineHeight: 1.6 }}>💡 En esta parte el balance de nutrientes aún no es definitivo — solo te ayuda a elegir alimentos e ir armando una idea de las proporciones.</div>
+            </div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, margin: "0 0 8px" }}>🍽️ ¿Qué comes en cada comida?</h3>
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7 }}>Aquí distribuyes los alimentos que elegiste entre las comidas del día, según la cantidad de comidas que indicaste en el cuestionario.</p>
+            <PreviewCard>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Desayuno <span style={{ float: "right", color: "#FFB74D" }}>1087 kcal</span></div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {["Picadillo", "Atún", "Tocino", "Frijol"].map((n, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 99, background: "rgba(129,199,132,0.15)", color: "#81C784" }}>{n}</span>
+                ))}
+              </div>
+            </PreviewCard>
+          </div>
+        )}
+        {seccion === "final" && (
+          <div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, margin: "0 0 8px" }}>🍽️ Alimentos del plan</h3>
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7 }}>Esta es la tabla más importante — aquí concluyes tu plan alimenticio. Ajusta las cantidades de lo que ya elegiste hasta acercarte lo más posible a tu meta de calorías y macronutrientes.</p>
+            <div style={{ marginBottom: 6, fontSize: 12, color: "#888" }}>Los colores del porcentaje te indican qué tan cerca estás de tu objetivo:</div>
+            {[["#81C784", "Verde", "dentro del rango óptimo"], ["#64B5F6", "Azul", "por debajo del óptimo"], ["#ef5350", "Rojo", "por arriba del óptimo"]].map(([color, label, desc], i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
+                <span style={{ fontSize: 13, color: "#ddd" }}><b>{label}:</b> {desc}</span>
+              </div>
+            ))}
+            <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.7, marginTop: 10 }}>Solo ajusta las porciones hasta que los números se acerquen lo más posible al verde.</p>
+            <PreviewCard>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#CE93D8", marginBottom: 8 }}>Total</div>
+              <div style={{ display: "flex", gap: 14, fontSize: 12 }}>
+                <div><div style={{ color: "#81C784", fontWeight: 700 }}>217.2</div><div style={{ fontSize: 9, color: "#555" }}>41.8%</div></div>
+                <div><div style={{ color: "#ef5350", fontWeight: 700 }}>89.9</div><div style={{ fontSize: 9, color: "#555" }}>17.2%</div></div>
+                <div><div style={{ color: "#64B5F6", fontWeight: 700 }}>92.9</div><div style={{ fontSize: 9, color: "#555" }}>40.0%</div></div>
+                <div><div style={{ color: "#81C784", fontWeight: 700 }}>2091</div><div style={{ fontSize: 9, color: "#555" }}>kcal</div></div>
+              </div>
+            </PreviewCard>
+          </div>
+        )}
+        {seccion === "botones" && (
+          <div>
+            {[
+              ["📖", "Guía", "Explica el porqué y la descripción general del protocolo que elegiste para tu objetivo."],
+              ["📊", "Seguimiento", "Guarda tus resultados semanales. La IA te da una recomendación según tu avance y te muestra una gráfica de tu progreso."],
+              ["📋", "Resumen completo del plan", "Muestra el resumen general de todo el plan y los datos que ingresaste."],
+              ["🔒", "Cerrar y guardar plan de hoy", "Al terminar tu plan, pulsa este botón para guardarlo. Ya no podrás editarlo después."],
+              ["🗓️", "Historial de planes", "Aquí están todos los planes que has hecho, incluido el de hoy, para que los consultes cuando quieras."],
+            ].map(([icon, titulo, desc], i) => (
+              <div key={i} style={{ display: "flex", gap: 12, padding: "12px 0", borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                <div style={{ fontSize: 20 }}>{icon}</div>
+                <div><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>{titulo}</div><div style={{ color: "#888", fontSize: 12, lineHeight: 1.6 }}>{desc}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button onClick={() => setScreen("app")} style={{ width: "100%", marginTop: 24, padding: "15px", borderRadius: 14, border: "none", background: "#64B5F6", color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+          {guiaOrigen === "app" ? "Entendido →" : "Empezar a armar mi plan →"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function FoodCard({ food, cat, selected, porciones, setPorciones, precios, setPrecios, toggle }) {
   const [editMode, setEditMode] = useState(null);
@@ -609,6 +826,7 @@ export default function NutriSelf() {
   const [upgradeFeature, setUpgradeFeature] = useState(null);
   const [guiaActiva, setGuiaActiva] = useState(null);
   const [guiaOrigen, setGuiaOrigen] = useState("protocolo");
+  const [guiaPlanOrigen, setGuiaPlanOrigen] = useState("protocolo");
   const [perfil, setPerfil]         = useState({ peso: "", talla: "", edad: "", sexo: "M", actividad: "moderado", cintura: "", cuello: "", cadera: "" });
   const [somatotipo, setSomatotipo] = useState(null);
   const [objetivo, setObjetivo]     = useState("quemar");
@@ -985,7 +1203,7 @@ export default function NutriSelf() {
     if (pregId === "comidas")       setNumComidas(+opId);
     if (pregId === "tiempoPrep")    setTiempoPrep(opId);
     if (preguntaActual < PREGUNTAS.length - 1) { setPreguntaActual(i => i + 1); }
-    else { setObjetivo(diagnosticarObjetivo(nuevas)); setScreen("resultado"); }
+    else { setObjetivo(diagnosticarObjetivo(nuevas)); setScreen("guiaMedidas"); }
   };
 
   const foodDbFiltrado = useMemo(() => {
@@ -1140,6 +1358,10 @@ export default function NutriSelf() {
   );
 
   if (screen === "guia" && guiaActiva) return <GuiaDieta guiaActiva={guiaActiva} guiaOrigen={guiaOrigen} somatotipo={somatotipo} objetivo={objetivo} setProtocolo={setProtocolo} setScreen={setScreen} />;
+
+  if (screen === "guiaMedidas") return <GuiaMedidas setScreen={setScreen} />;
+
+  if (screen === "guiaPlan") return <GuiaPlanElaboracion setScreen={setScreen} guiaOrigen={guiaPlanOrigen} />;
 
   // ── UPGRADE ───────────────────────────────────────────────────────────
   if (screen === "upgrade") {
@@ -1465,7 +1687,7 @@ export default function NutriSelf() {
           <div style={{ marginTop: 16, padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
             <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>💡 <span style={{ color: "#888" }}>El número de comidas al día no afecta el metabolismo — está demostrado científicamente. Lo que importa es el total calórico. Tú decides cuántas comidas hacer según tu tiempo.</span></div>
           </div>
-          <button onClick={() => setScreen("app")} style={{ marginTop: 20, width: "100%", padding: "15px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>Armar mi plan con {PROTOCOLOS[protocolo]?.label} →</button>
+          <button onClick={() => { setGuiaPlanOrigen("protocolo"); setScreen("guiaPlan"); }} style={{ marginTop: 20, width: "100%", padding: "15px", borderRadius: 14, border: "none", background: "#FFB74D", color: "#000", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>Armar mi plan con {PROTOCOLOS[protocolo]?.label} →</button>
         </div>
       </div>
     );
@@ -2354,6 +2576,7 @@ export default function NutriSelf() {
         <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
           <button onClick={() => intentarAcceder("seguimiento", () => setScreen("seguimiento"))} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "#888", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📊 Seguimiento</button>
           <button onClick={() => { setGuiaActiva(protocolo); setGuiaOrigen("app"); setScreen("guia"); }} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(255,183,77,0.2)", background: "rgba(255,183,77,0.06)", color: "#FFB74D", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📖 Guía {PROTOCOLOS[protocolo]?.icon}</button>
+          <button onClick={() => { setGuiaPlanOrigen("app"); setScreen("guiaPlan"); }} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(100,181,246,0.2)", background: "rgba(100,181,246,0.06)", color: "#64B5F6", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>❓ Cómo funciona</button>
           <button onClick={() => setScreen("resumen")} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(100,181,246,0.2)", background: "rgba(100,181,246,0.06)", color: "#64B5F6", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>📋 Ver resumen completo del plan</button>
         </div>
       </div>
